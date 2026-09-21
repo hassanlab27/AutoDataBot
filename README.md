@@ -270,9 +270,47 @@ npm run build
 
 ## Development Roadmap
 
-- [x] **Phase 1: Foundation, Ingestion & Data Quality**
+- [x] **Phase 1: Foundation, Ingestion & Data Quality** *(Completed)*
 - [x] **Phase 2: Exploratory Data Analysis (EDA) & Visualization** *(Completed)*
 - [x] **Phase 3: Preprocessing & ML Dataset Preparation** *(Completed)*
-- [ ] **Phase 4: AutoML Model Training**
+- [x] **Phase 4: AutoML & Model Training** *(Completed)*
 - [ ] **Phase 5: Evaluation & Explainability**
 - [ ] **Phase 6: Reporting & One-Click Export**
+
+---
+
+## Phase 4 — AutoML & Tabular Model Training
+
+AutoDataBot includes an end-to-end automated machine learning engine for small-to-medium tabular CSV datasets:
+
+### 1. Zero Data Leakage Guarantee
+- **Strict Partitioning:** Train and held-out test sets are split before any preprocessing or fitting.
+- **Path A vs Path B Architecture:**
+  - **Path A (AutoGluon Tabular):** Trained on validated raw tabular training data ($X_{\text{train\_raw}} + y_{\text{train}}$). AutoGluon performs internal preprocessing, feature generation, and multi-layer ensembling.
+  - **Path B (Scikit-Learn, LightGBM, XGBoost, CatBoost, FLAML):** Trained on Phase 3 preprocessed features ($X_{\text{train\_prep}}, y_{\text{train}}$).
+- **Test Set Isolation:** The held-out test partition is strictly untouched during all hyperparameter tuning, model training, and candidate ranking. Only the final selected winning model is evaluated against the test partition.
+
+### 2. Supported Algorithms & Ensembles
+- **Naive Baselines:** `DummyClassifier` / `DummyRegressor` providing essential sanity-check baselines.
+- **Linear Models:** `LogisticRegression` (L2/multinomial) and `LinearRegression` (OLS / Ridge).
+- **Tree Ensembles:** `RandomForestClassifier` / `RandomForestRegressor`.
+- **Fast Gradient Boosting:** `HistGradientBoostingClassifier` / `HistGradientBoostingRegressor`.
+- **Specialized GBDT Engines:**
+  - `LightGBM` (LightGBM standalone classifier/regressor)
+  - `XGBoost` (XGBoost standalone classifier/regressor)
+  - `CatBoost` (CatBoost standalone classifier/regressor)
+- **AutoML Frameworks:**
+  - `FLAML` (Cost-effective fast hyperparameter optimization)
+  - `AutoGluon Tabular` (Stacking and weighted ensembling)
+
+### 3. Fair Evaluation & Diagnostics
+- **Direction-Aware Ranking:** Sorting adapts dynamically based on whether higher is better (`accuracy`, `f1`, `f1_macro`, `roc_auc`, `r2`) or lower is better (`rmse`, `mae`, `mape`).
+- **Generalization Gap:** Computes validation score vs test score difference.
+- **Rule-Based Diagnostics:**
+  - *Normal / Well-fit* (consistent validation and test generalization)
+  - *Possible Overfitting* (moderate drop from validation to test set)
+  - *Severe Overfitting* (performance drop $\ge 20\%$ on held-out test data)
+  - *Underfitting* (low score or minimal gain over naive baseline)
+  - *Worse than Baseline* (model underperforms a naive dummy predictor)
+  - *Suspiciously High Performance* (near-perfect score indicative of potential target leakage)
+

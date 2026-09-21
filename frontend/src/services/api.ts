@@ -24,6 +24,12 @@ import {
   PreprocessingSummaryResponse,
   PreprocessingPreviewResponse
 } from '../types/preprocessing';
+import {
+  AutoMLConfig,
+  RunStatus,
+  RunDetails,
+  ModelResult
+} from '../types/ml';
 
 const BASE_URL = '/api';
 
@@ -168,5 +174,42 @@ export const api = {
   async getPreprocessingPreview(datasetId: string, limit: number = 20): Promise<PreprocessingPreviewResponse> {
     const res = await fetch(`${BASE_URL}/datasets/${datasetId}/preprocessing/preview?limit=${limit}`);
     return handleResponse<PreprocessingPreviewResponse>(res);
+  },
+
+  // AutoML API endpoints
+  async startRun(config: AutoMLConfig): Promise<{ success: boolean; message: string; data: any }> {
+    const res = await fetch(`${BASE_URL}/runs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config)
+    });
+    return handleResponse<{ success: boolean; message: string; data: any }>(res);
+  },
+
+  async getRun(runId: string): Promise<{ success: boolean; data: RunDetails }> {
+    const res = await fetch(`${BASE_URL}/runs/${runId}`);
+    return handleResponse<{ success: boolean; data: RunDetails }>(res);
+  },
+
+  async getRunStatus(runId: string): Promise<{ success: boolean; data: RunStatus }> {
+    const res = await fetch(`${BASE_URL}/runs/${runId}/status`);
+    return handleResponse<{ success: boolean; data: RunStatus }>(res);
+  },
+
+  async getRunLeaderboard(runId: string): Promise<{ success: boolean; run_id: string; leaderboard: ModelResult[] }> {
+    const res = await fetch(`${BASE_URL}/runs/${runId}/leaderboard`);
+    return handleResponse<{ success: boolean; run_id: string; leaderboard: ModelResult[] }>(res);
+  },
+
+  async cancelRun(runId: string): Promise<{ success: boolean; message: string }> {
+    const res = await fetch(`${BASE_URL}/runs/${runId}/cancel`, {
+      method: 'POST'
+    });
+    return handleResponse<{ success: boolean; message: string }>(res);
+  },
+
+  async getDatasetRuns(datasetId: string): Promise<{ success: boolean; dataset_id: string; runs: any[] }> {
+    const res = await fetch(`${BASE_URL}/runs/dataset/${datasetId}`);
+    return handleResponse<{ success: boolean; dataset_id: string; runs: any[] }>(res);
   }
 };

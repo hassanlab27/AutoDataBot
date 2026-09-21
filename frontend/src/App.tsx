@@ -7,13 +7,14 @@ import { QualitySection } from './components/QualitySection';
 import { DatasetPreview } from './components/DatasetPreview';
 import { EDADashboard } from './components/eda/EDADashboard';
 import { PreprocessingDashboard } from './components/preprocessing/PreprocessingDashboard';
+import { MLDashboard } from './components/ml/MLDashboard';
 import { UploadResponse } from './types/dataset';
 import { api } from './services/api';
-import { FileUp, BarChart3, Columns, ShieldCheck, Table, LineChart, Sliders } from 'lucide-react';
+import { FileUp, BarChart3, Columns, ShieldCheck, Table, LineChart, Sliders, Zap } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [dataset, setDataset] = useState<UploadResponse | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'eda' | 'columns' | 'quality' | 'preview' | 'prepare'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'eda' | 'columns' | 'quality' | 'preview' | 'prepare' | 'automl'>('overview');
   const [backendConnected, setBackendConnected] = useState<boolean>(false);
 
   useEffect(() => {
@@ -114,6 +115,19 @@ export const App: React.FC = () => {
                 >
                   <Sliders size={15} /> Prepare Dataset
                 </button>
+                <button
+                  className={`btn ${activeTab === 'automl' ? 'btn-primary' : 'btn-outline'}`}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    fontSize: '0.825rem',
+                    background: activeTab === 'automl' ? 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)' : undefined,
+                    borderColor: activeTab === 'automl' ? '#6366f1' : undefined,
+                    color: '#fff'
+                  }}
+                  onClick={() => setActiveTab('automl')}
+                >
+                  <Zap size={15} /> AutoML Training
+                </button>
               </div>
 
               {/* Upload another dataset */}
@@ -153,6 +167,10 @@ export const App: React.FC = () => {
                   inferred_dtype: c.inferred_dtype
                 }))}
               />
+            )}
+
+            {activeTab === 'automl' && (
+              <MLDashboard datasetId={dataset.dataset_id} />
             )}
 
             {activeTab === 'columns' && (

@@ -21,6 +21,18 @@ class AutoDataBotException(Exception):
         self.details = details or {}
         super().__init__(message)
 
+# Alias for backwards compatibility
+AutoDataBotError = AutoDataBotException
+
+class AutoMLError(AutoDataBotException):
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
+        super().__init__(
+            error="AUTOML_ERROR",
+            message=message,
+            status_code=status.HTTP_400_BAD_REQUEST,
+            details=details
+        )
+
 class DatasetNotFoundError(AutoDataBotException):
     def __init__(self, dataset_id: str):
         super().__init__(
