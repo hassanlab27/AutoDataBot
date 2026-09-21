@@ -72,17 +72,22 @@ def train_autogluon_engine(
             verbosity=1
         )
 
-        predictor.fit(
-            train_data=train_data_raw,
-            tuning_data=val_data_raw,
-            time_limit=time_limit,
-            presets=presets,
-            random_seed=random_state
-        )
+        fit_kwargs = {
+            "train_data": train_data_raw,
+            "time_limit": time_limit,
+            "presets": presets
+        }
+        if val_data_raw is not None:
+            fit_kwargs["tuning_data"] = val_data_raw
+
+        predictor.fit(**fit_kwargs)
         total_time = round(time.perf_counter() - t0, 3)
 
         # Retrieve Leaderboard
-        lb = predictor.leaderboard(data=val_data_raw, silent=True)
+        if val_data_raw is not None:
+            lb = predictor.leaderboard(data=val_data_raw, silent=True)
+        else:
+            lb = predictor.leaderboard(silent=True)
         logger.info(f"AutoGluon completed training {len(lb)} candidate models in {total_time}s")
 
         # Extract models from leaderboard
