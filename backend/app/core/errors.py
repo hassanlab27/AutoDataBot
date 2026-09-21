@@ -83,3 +83,30 @@ class UnsupportedChartError(AutoDataBotException):
             status_code=status.HTTP_400_BAD_REQUEST,
             details=details
         )
+
+class InvalidTargetError(AutoDataBotException):
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
+        super().__init__(
+            error="INVALID_TARGET",
+            message=message,
+            status_code=status.HTTP_400_BAD_REQUEST,
+            details=details
+        )
+
+class TargetLeakageError(AutoDataBotException):
+    def __init__(self, message: str = "Target column detected inside feature matrix X, causing data leakage.", details: Optional[Dict[str, Any]] = None):
+        super().__init__(
+            error="TARGET_LEAKAGE_DETECTED",
+            message=message,
+            status_code=status.HTTP_400_BAD_REQUEST,
+            details=details
+        )
+
+class PreprocessingError(AutoDataBotException):
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
+        super().__init__(
+            error="PREPROCESSING_ERROR",
+            message=message,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            details=details
+        )

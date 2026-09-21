@@ -43,6 +43,12 @@ class Settings(BaseSettings):
     EDA_STRONG_CORRELATION_THRESHOLD: float = 0.5
     EDA_RANDOM_SEED: int = 42
 
+    # Phase 3: Preprocessing Configuration
+    PREPROCESSING_DEFAULT_TEST_SIZE: float = 0.20
+    PREPROCESSING_DEFAULT_RANDOM_STATE: int = 42
+    PREPROCESSING_MAX_ONE_HOT_CATEGORIES: int = 50
+    PREPROCESSING_EXCESSIVE_MISSING_THRESHOLD: float = 0.70
+
     model_config = {
         "env_prefix": "AUTODATABOT_",
         "case_sensitive": False
@@ -54,3 +60,4 @@ settings = Settings()
 settings.UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 settings.PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 settings.OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
+(settings.OUTPUTS_DIR / "datasets").mkdir(parents=True, exist_ok=True)

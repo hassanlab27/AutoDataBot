@@ -16,6 +16,14 @@ import {
   PlotlyFigurePayload,
   TargetAnalysisResponse
 } from '../types/eda';
+import {
+  TargetInspectResponse,
+  FeatureAuditResponse,
+  PrepareDatasetRequest,
+  PrepareDatasetResponse,
+  PreprocessingSummaryResponse,
+  PreprocessingPreviewResponse
+} from '../types/preprocessing';
 
 const BASE_URL = '/api';
 
@@ -120,5 +128,45 @@ export const api = {
   async getEDATargetAnalysis(datasetId: string, targetCol: string): Promise<TargetAnalysisResponse> {
     const res = await fetch(`${BASE_URL}/datasets/${datasetId}/eda/target-analysis?target=${encodeURIComponent(targetCol)}`);
     return handleResponse<TargetAnalysisResponse>(res);
+  },
+
+  // ----------------------------------------------------------------
+  // Phase 3: Preprocessing & ML Dataset Preparation
+  // ----------------------------------------------------------------
+  async inspectTarget(datasetId: string, targetCol: string): Promise<TargetInspectResponse> {
+    const res = await fetch(`${BASE_URL}/datasets/${datasetId}/preprocessing/target-inspect`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target: targetCol })
+    });
+    return handleResponse<TargetInspectResponse>(res);
+  },
+
+  async auditFeatures(datasetId: string, targetCol: string): Promise<FeatureAuditResponse> {
+    const res = await fetch(`${BASE_URL}/datasets/${datasetId}/preprocessing/features-inspect`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target: targetCol })
+    });
+    return handleResponse<FeatureAuditResponse>(res);
+  },
+
+  async prepareDataset(datasetId: string, config: PrepareDatasetRequest): Promise<PrepareDatasetResponse> {
+    const res = await fetch(`${BASE_URL}/datasets/${datasetId}/preprocessing/prepare`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config)
+    });
+    return handleResponse<PrepareDatasetResponse>(res);
+  },
+
+  async getPreprocessingSummary(datasetId: string): Promise<PreprocessingSummaryResponse> {
+    const res = await fetch(`${BASE_URL}/datasets/${datasetId}/preprocessing/summary`);
+    return handleResponse<PreprocessingSummaryResponse>(res);
+  },
+
+  async getPreprocessingPreview(datasetId: string, limit: number = 20): Promise<PreprocessingPreviewResponse> {
+    const res = await fetch(`${BASE_URL}/datasets/${datasetId}/preprocessing/preview?limit=${limit}`);
+    return handleResponse<PreprocessingPreviewResponse>(res);
   }
 };

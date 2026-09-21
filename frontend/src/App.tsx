@@ -6,13 +6,14 @@ import { ColumnTable } from './components/ColumnTable';
 import { QualitySection } from './components/QualitySection';
 import { DatasetPreview } from './components/DatasetPreview';
 import { EDADashboard } from './components/eda/EDADashboard';
+import { PreprocessingDashboard } from './components/preprocessing/PreprocessingDashboard';
 import { UploadResponse } from './types/dataset';
 import { api } from './services/api';
-import { FileUp, BarChart3, Columns, ShieldCheck, Table, LineChart } from 'lucide-react';
+import { FileUp, BarChart3, Columns, ShieldCheck, Table, LineChart, Sliders } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [dataset, setDataset] = useState<UploadResponse | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'eda' | 'columns' | 'quality' | 'preview'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'eda' | 'columns' | 'quality' | 'preview' | 'prepare'>('overview');
   const [backendConnected, setBackendConnected] = useState<boolean>(false);
 
   useEffect(() => {
@@ -100,6 +101,19 @@ export const App: React.FC = () => {
                 >
                   <Table size={15} /> Sample Preview
                 </button>
+                <button
+                  className={`btn ${activeTab === 'prepare' ? 'btn-primary' : 'btn-outline'}`}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    fontSize: '0.825rem',
+                    background: activeTab === 'prepare' ? 'var(--accent-purple)' : undefined,
+                    borderColor: activeTab === 'prepare' ? 'var(--accent-purple)' : undefined,
+                    color: '#fff'
+                  }}
+                  onClick={() => setActiveTab('prepare')}
+                >
+                  <Sliders size={15} /> Prepare Dataset
+                </button>
               </div>
 
               {/* Upload another dataset */}
@@ -123,6 +137,16 @@ export const App: React.FC = () => {
 
             {activeTab === 'eda' && (
               <EDADashboard
+                datasetId={dataset.dataset_id}
+                columns={dataset.summary.columns.map(c => ({
+                  name: c.name,
+                  inferred_dtype: c.inferred_dtype
+                }))}
+              />
+            )}
+
+            {activeTab === 'prepare' && (
+              <PreprocessingDashboard
                 datasetId={dataset.dataset_id}
                 columns={dataset.summary.columns.map(c => ({
                   name: c.name,

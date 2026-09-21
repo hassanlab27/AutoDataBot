@@ -108,6 +108,90 @@ All limits are configurable via environment variables (prefixed with `AUTODATABO
 
 ---
 
+---
+
+## Phase 3 — Preprocessing & ML Dataset Preparation
+
+AutoDataBot implements a leakage-free, reproducible, and fully serializable preprocessing engine to prepare tabular CSV datasets for downstream AutoML without training models in this phase.
+
+### 1. Preprocessing Pipeline Flow
+
+```text
+Raw CSV
+   ↓
+Validated Dataset
+   ↓
+User-selected Target Column
+   ↓
+Conservative Problem-Type Detection (Classification / Regression / Ambiguous)
+   ↓
+Feature Selection & Leakage Audit (Direct duplicate detection, row ID detection)
+   ↓
+Strict Feature/Target Segregation: (X ∩ {y} = ∅)
+   ↓
+Train/Test Partition (80/20 default, Stratified for Classification, Random for Regression)
+   ↓
+TRAINING DATA ONLY Preprocessing Fitting (Imputation, OneHot, Scaling, Datetime)
+   ↓
+Hold-out Test Set Transformation (Using already-fitted training statistics)
+   ↓
+Joblib Serialization (pipeline.joblib, config.json, metadata.json)
+   ↓
+Processed Training Sample Preview (First 20 records)
+```
+
+> [!CRITICAL]
+> **Zero Data Leakage Guarantee:**
+> **The test set is held out and is not used to fit preprocessing transformations.**
+> Imputers (median/mode), scalers (mean/std), and encoders (category vocabularies) are fitted **strictly** on the training partition ($X_{\text{train}}$). The test partition ($X_{\text{test}}$) is only transformed via the fitted pipeline.
+
+---
+
+### 2. Key Phase 3 Capabilities
+
+- **Explicit Target Selection & Validation:** The user explicitly selects the target column. AutoDataBot validates that the target exists, is not empty, contains usable observations, and is not constant.
+- **Conservative Problem-Type Detection:** Deterministic rules classify the target into:
+  - `binary_classification`: Exactly 2 unique classes or boolean targets.
+  - `multiclass_classification`: 3 to 20 unique classes, or low-cardinality discrete strings.
+  - `regression`: Continuous numerical float targets or high-cardinality numeric scales.
+  - `ambiguous`: Discrete numerical scales (e.g., 1-5 customer rating) where user confirmation is explicitly required.
+- **Feature Selection & Quality Audit:**
+  - Audits candidate features for constant columns, pairwise exact duplicates, obvious row identifiers (UUIDs, >99% unique keys), free-form text, and high-cardinality categoricals (>50 unique levels).
+  - Suspicious columns are flagged with clear human-readable explanations rather than silently dropped.
+  - Target Leakage Barrier: Enforces $X_{\text{selected}} \cap \{y\} = \emptyset$ both at UI, service, and router levels.
+- **Train/Test Splitting:**
+  - Configurable ratio (default: 80% train / 20% test, range: 10% - 40%).
+  - Configurable random seed for deterministic reproducibility (default: 42).
+  - Stratified split for classification to preserve class balances; randomized split for regression.
+  - Verifies disjoint index partitions: $I_{\text{train}} \cap I_{\text{test}} = \emptyset$.
+- **Leakage-Resistant Preprocessing:**
+  - **Numerical Imputation:** Default median imputation (or mean, most frequent).
+  - **Categorical Imputation:** Default most frequent mode (or explicit `__MISSING__` category).
+  - **Categorical Encoding:** `OneHotEncoder(handle_unknown="ignore")` to ensure unseen categories in test or future inference data never crash the pipeline.
+  - **Infinite Value Sanitizer:** `+inf` and `-inf` are automatically converted to `np.nan` before imputation.
+  - **Datetime Component Extractor:** Scikit-learn compatible transformer extracting numeric components (`_year`, `_month`, `_day`, `_dayofweek`) while dropping raw timestamps.
+  - **Numerical Scaling:** Configurable `StandardScaler` (zero mean, unit variance) or unscaled pass-through.
+- **Artifact Serialization:**
+  - Saves the complete fitted pipeline to `outputs/datasets/<dataset_id>/preprocessing/`:
+    - `pipeline.joblib`: Serialized ColumnTransformer, encoders, scalers, and datetime transformers.
+    - `config.json`: Exact reproducibility configuration (seed, test size, imputation, encoding choices).
+    - `metadata.json`: Feature counts, one-hot generated names, and train/test partition distribution summaries.
+- **Processed Data Preview:** Live endpoint returning the first 20 records of the transformed training matrix for immediate UI inspection.
+
+---
+
+### 3. Preprocessing REST API Endpoints
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `POST` | `/api/datasets/{id}/preprocessing/target-inspect` | Validates target, detects problem type, and returns diagnostics |
+| `POST` | `/api/datasets/{id}/preprocessing/features-inspect` | Audits features for flags, duplicates, IDs, and leakage |
+| `POST` | `/api/datasets/{id}/preprocessing/prepare` | Executes split, fits pipeline on train, transforms, and saves artifacts |
+| `GET`  | `/api/datasets/{id}/preprocessing/summary` | Retrieves metadata of prepared dataset and partition info |
+| `GET`  | `/api/datasets/{id}/preprocessing/preview` | Returns a sample preview of the processed training matrix |
+
+---
+
 ## Local Setup & Installation
 
 ### 1. Setup Backend
@@ -162,14 +246,17 @@ cd backend
 .venv/bin/pytest backend/tests
 ```
 
-**44 automated tests passing (0.59s):**
+**65 automated tests passing:**
 - **Phase 1 Baseline (17 tests):** Upload validation, CSV reader, encoding/delimiter detection, schema inspection, data quality scoring, health check.
 - **Phase 2 EDA Core (23 tests):** Numerical statistics (handling NaN, inf, all-NaN, constants, single-row), categorical stats, missing value percentages and severity, Pearson correlation matrix, strong pairs extraction, IQR outlier fences, deterministic chart recommendations, all API endpoints.
-- **Phase 2 Benchmark Verification (4 tests):**
-  - **Dataset A:** Small numerical dataset.
-  - **Dataset B:** Mixed numerical + categorical dataset.
-  - **Dataset C:** Stress dataset (all-NaN, severe missingness, constant columns, high-cardinality IDs, extreme outliers, duplicate rows).
-  - **Dataset D:** Temporal dataset with Datetime column.
+- **Phase 2 Benchmark Verification (4 tests):** Dataset A (numerical), Dataset B (mixed), Dataset C (stress), Dataset D (temporal).
+- **Phase 3 Preprocessing Unit & Integration (16 tests):** Target validation, binary/multiclass/regression/ambiguous detection, feature audit flags, leakage barrier enforcement, train/test split disjointness, **mandatory zero-leakage fitting verification**, datetime component extraction, infinite numbers sanitization, joblib serialization, full REST API route integration.
+- **Phase 3 Benchmark Verification (5 tests):**
+  - **Dataset A:** Pure numerical binary classification.
+  - **Dataset B:** Mixed categorical/numerical classification with one-hot expansion.
+  - **Dataset C:** Continuous target regression with skewness and outliers.
+  - **Dataset D:** Missing values, infinite numbers, and unseen categories in test set.
+  - **Dataset E:** Datetime feature extraction combined with categorical and numerical features.
 
 Frontend build & type-checking verification:
 
@@ -177,7 +264,7 @@ Frontend build & type-checking verification:
 cd frontend
 npm run build
 ```
-*(Transpiles TypeScript and bundles React + Plotly chunks with 0 errors in ~18s).*
+*(Transpiles TypeScript and bundles React + Plotly chunks with 0 errors in ~27s).*
 
 ---
 
@@ -185,7 +272,7 @@ npm run build
 
 - [x] **Phase 1: Foundation, Ingestion & Data Quality**
 - [x] **Phase 2: Exploratory Data Analysis (EDA) & Visualization** *(Completed)*
-- [ ] **Phase 3: Preprocessing & ML Dataset Preparation**
+- [x] **Phase 3: Preprocessing & ML Dataset Preparation** *(Completed)*
 - [ ] **Phase 4: AutoML Model Training**
 - [ ] **Phase 5: Evaluation & Explainability**
 - [ ] **Phase 6: Reporting & One-Click Export**
