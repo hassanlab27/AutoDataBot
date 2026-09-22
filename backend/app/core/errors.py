@@ -21,8 +21,21 @@ class AutoDataBotException(Exception):
         self.details = details or {}
         super().__init__(message)
 
-# Alias for backwards compatibility
-AutoDataBotError = AutoDataBotException
+class AutoDataBotError(AutoDataBotException):
+    def __init__(
+        self,
+        error_or_message: str,
+        message: Optional[str] = None,
+        status_code: int = status.HTTP_400_BAD_REQUEST,
+        details: Optional[Dict[str, Any]] = None
+    ):
+        if message is None:
+            err = "AUTODATABOT_ERROR"
+            msg = error_or_message
+        else:
+            err = error_or_message
+            msg = message
+        super().__init__(error=err, message=msg, status_code=status_code, details=details)
 
 class AutoMLError(AutoDataBotException):
     def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):

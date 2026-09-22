@@ -5,12 +5,14 @@ interface FinalModelCardProps {
   winner: ModelResult;
   primaryMetric: string;
   naiveBaselineScore?: number;
+  onViewEvaluation?: () => void;
 }
 
 export const FinalModelCard: React.FC<FinalModelCardProps> = ({
   winner,
   primaryMetric,
-  naiveBaselineScore
+  naiveBaselineScore,
+  onViewEvaluation
 }) => {
   const formatScore = (val?: number) => {
     if (val === undefined || val === null || isNaN(val)) return '—';
@@ -168,6 +170,22 @@ export const FinalModelCard: React.FC<FinalModelCardProps> = ({
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Explore Evaluation Action */}
+      {onViewEvaluation && (
+        <div className="mt-6 pt-5 border-t border-slate-800/80 flex items-center justify-between">
+          <div className="text-xs text-slate-400">
+            Inspect confusion matrices, ROC/PR curves, error analysis, and SHAP attributions:
+          </div>
+          <button
+            onClick={onViewEvaluation}
+            className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:to-pink-500 text-white text-xs font-bold shadow-lg transition-all flex items-center gap-2"
+          >
+            <span>🔬</span>
+            <span>Explore Evaluation & Explainability</span>
+          </button>
         </div>
       )}
     </div>

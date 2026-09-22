@@ -11,6 +11,8 @@ from app.api.routes.datasets import router as datasets_router
 from app.api.routes.eda import router as eda_router
 from app.api.routes.preprocessing import router as preprocessing_router
 from app.api.routes.runs import router as runs_router
+from app.api.routes.evaluation import router as evaluation_router
+from app.api.routes.explainability import router as explainability_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -68,6 +70,8 @@ app.include_router(datasets_router, prefix=settings.API_PREFIX)
 app.include_router(eda_router, prefix=settings.API_PREFIX)
 app.include_router(preprocessing_router, prefix=settings.API_PREFIX)
 app.include_router(runs_router, prefix=settings.API_PREFIX)
+app.include_router(evaluation_router, prefix=settings.API_PREFIX)
+app.include_router(explainability_router, prefix=settings.API_PREFIX)
 
 @app.get("/")
 def root():

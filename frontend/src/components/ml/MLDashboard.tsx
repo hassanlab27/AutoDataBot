@@ -8,9 +8,10 @@ import { FinalModelCard } from './FinalModelCard';
 
 interface MLDashboardProps {
   datasetId: string;
+  onViewEvaluation?: (runId: string) => void;
 }
 
-export const MLDashboard: React.FC<MLDashboardProps> = ({ datasetId }) => {
+export const MLDashboard: React.FC<MLDashboardProps> = ({ datasetId, onViewEvaluation }) => {
   const [preprocessingSummary, setPreprocessingSummary] = useState<any>(null);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [runStatus, setRunStatus] = useState<RunStatus | null>(null);
@@ -241,6 +242,7 @@ export const MLDashboard: React.FC<MLDashboardProps> = ({ datasetId }) => {
               winner={winnerModel}
               primaryMetric={runDetails.metrics?.primary_metric || 'score'}
               naiveBaselineScore={runDetails.metrics?.naive_baseline_score}
+              onViewEvaluation={onViewEvaluation && activeRunId ? () => onViewEvaluation(activeRunId) : undefined}
             />
           )}
 

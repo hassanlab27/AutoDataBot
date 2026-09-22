@@ -7,14 +7,16 @@ import { QualitySection } from './components/QualitySection';
 import { DatasetPreview } from './components/DatasetPreview';
 import { EDADashboard } from './components/eda/EDADashboard';
 import { PreprocessingDashboard } from './components/preprocessing/PreprocessingDashboard';
-import { MLDashboard } from './components/ml/MLDashboard';
+import { EvaluationDashboard } from './components/evaluation/EvaluationDashboard';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { UploadResponse } from './types/dataset';
 import { api } from './services/api';
-import { FileUp, BarChart3, Columns, ShieldCheck, Table, LineChart, Sliders, Zap } from 'lucide-react';
+import { FileUp, BarChart3, Columns, ShieldCheck, Table, LineChart, Sliders, Sparkles } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [dataset, setDataset] = useState<UploadResponse | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'eda' | 'columns' | 'quality' | 'preview' | 'prepare' | 'automl'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'eda' | 'columns' | 'quality' | 'preview' | 'prepare' | 'evaluation'>('overview');
+  const [evaluationRunId, setEvaluationRunId] = useState<string | null>(null);
   const [backendConnected, setBackendConnected] = useState<boolean>(false);
 
   useEffect(() => {
@@ -116,17 +118,17 @@ export const App: React.FC = () => {
                   <Sliders size={15} /> Prepare Dataset
                 </button>
                 <button
-                  className={`btn ${activeTab === 'automl' ? 'btn-primary' : 'btn-outline'}`}
+                  className={`btn ${activeTab === 'evaluation' ? 'btn-primary' : 'btn-outline'}`}
                   style={{
                     padding: '0.5rem 1rem',
                     fontSize: '0.825rem',
-                    background: activeTab === 'automl' ? 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)' : undefined,
-                    borderColor: activeTab === 'automl' ? '#6366f1' : undefined,
+                    background: activeTab === 'evaluation' ? 'linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)' : undefined,
+                    borderColor: activeTab === 'evaluation' ? '#ec4899' : undefined,
                     color: '#fff'
                   }}
-                  onClick={() => setActiveTab('automl')}
+                  onClick={() => setActiveTab('evaluation')}
                 >
-                  <Zap size={15} /> AutoML Training
+                  <Sparkles size={15} /> Model Evaluation
                 </button>
               </div>
 
@@ -142,48 +144,61 @@ export const App: React.FC = () => {
             </div>
 
             {/* Tab Views */}
-            {activeTab === 'overview' && (
-              <div>
-                <DatasetOverview summary={dataset.summary} ingestion={dataset.ingestion} />
+            <ErrorBoundary
+              fallbackTitle="Tab Content Display Error"
+              fallbackMessage="An error occurred while rendering this tab. You can switch to other tabs or click retry."
+              onReset={() => setActiveTab('overview')}
+            >
+              {activeTab === 'overview' && (
+                <div>
+                  <DatasetOverview summary={dataset.summary} ingestion={dataset.ingestion} />
+                  <QualitySection quality={dataset.quality} />
+                </div>
+              )}
+
+              {activeTab === 'eda' && (
+                <EDADashboard
+                  datasetId={dataset.dataset_id}
+                  columns={dataset.summary.columns.map(c => ({
+                    name: c.name,
+                    inferred_dtype: c.inferred_dtype
+                  }))}
+                />
+              )}
+
+              {activeTab === 'prepare' && (
+                <PreprocessingDashboard
+                  datasetId={dataset.dataset_id}
+                  columns={dataset.summary.columns.map(c => ({
+                    name: c.name,
+                    inferred_dtype: c.inferred_dtype
+                  }))}
+                  onNavigateToEvaluation={(runId) => {
+                    setEvaluationRunId(runId);
+                    setActiveTab('evaluation');
+                  }}
+                />
+              )}
+
+              {activeTab === 'evaluation' && (
+                <EvaluationDashboard
+                  datasetId={dataset.dataset_id}
+                  initialRunId={evaluationRunId}
+                />
+              )}
+
+              {activeTab === 'columns' && (
+                <ColumnTable columns={dataset.summary.columns} />
+              )}
+
+              {activeTab === 'quality' && (
                 <QualitySection quality={dataset.quality} />
-              </div>
-            )}
+              )}
 
-            {activeTab === 'eda' && (
-              <EDADashboard
-                datasetId={dataset.dataset_id}
-                columns={dataset.summary.columns.map(c => ({
-                  name: c.name,
-                  inferred_dtype: c.inferred_dtype
-                }))}
-              />
-            )}
-
-            {activeTab === 'prepare' && (
-              <PreprocessingDashboard
-                datasetId={dataset.dataset_id}
-                columns={dataset.summary.columns.map(c => ({
-                  name: c.name,
-                  inferred_dtype: c.inferred_dtype
-                }))}
-              />
-            )}
-
-            {activeTab === 'automl' && (
-              <MLDashboard datasetId={dataset.dataset_id} />
-            )}
-
-            {activeTab === 'columns' && (
-              <ColumnTable columns={dataset.summary.columns} />
-            )}
-
-            {activeTab === 'quality' && (
-              <QualitySection quality={dataset.quality} />
-            )}
-
-            {activeTab === 'preview' && (
-              <DatasetPreview datasetId={dataset.dataset_id} />
-            )}
+              {activeTab === 'preview' && (
+                <DatasetPreview datasetId={dataset.dataset_id} />
+              )}
+            </ErrorBoundary>
           </div>
         )}
       </main>

@@ -30,6 +30,22 @@ import {
   RunDetails,
   ModelResult
 } from '../types/ml';
+import {
+  EvaluationOverview,
+  ClassificationPerformance,
+  RegressionPerformance,
+  ClassificationErrorAnalysis,
+  RegressionErrorAnalysis,
+  GeneralizationDiagnostics,
+  ComparisonSummary
+} from '../types/evaluation';
+import {
+  FeatureImportanceResponse,
+  ShapSummaryResponse,
+  ShapStatusResponse,
+  ShapDependenceResponse,
+  LocalExplanationResponse
+} from '../types/explainability';
 
 const BASE_URL = '/api';
 
@@ -211,5 +227,79 @@ export const api = {
   async getDatasetRuns(datasetId: string): Promise<{ success: boolean; dataset_id: string; runs: any[] }> {
     const res = await fetch(`${BASE_URL}/runs/dataset/${datasetId}`);
     return handleResponse<{ success: boolean; dataset_id: string; runs: any[] }>(res);
+  },
+
+  // Evaluation & Diagnostics API endpoints
+  async getEvaluationOverview(runId: string): Promise<{ success: boolean; data: EvaluationOverview }> {
+    const res = await fetch(`${BASE_URL}/runs/${runId}/evaluation`);
+    return handleResponse<{ success: boolean; data: EvaluationOverview }>(res);
+  },
+
+  async getClassificationEvaluation(runId: string): Promise<{ success: boolean; data: ClassificationPerformance }> {
+    const res = await fetch(`${BASE_URL}/runs/${runId}/evaluation/classification`);
+    return handleResponse<{ success: boolean; data: ClassificationPerformance }>(res);
+  },
+
+  async getRegressionEvaluation(runId: string): Promise<{ success: boolean; data: RegressionPerformance }> {
+    const res = await fetch(`${BASE_URL}/runs/${runId}/evaluation/regression`);
+    return handleResponse<{ success: boolean; data: RegressionPerformance }>(res);
+  },
+
+  async getErrorAnalysis(runId: string, limit: number = 20): Promise<{ success: boolean; data: ClassificationErrorAnalysis | RegressionErrorAnalysis }> {
+    const res = await fetch(`${BASE_URL}/runs/${runId}/evaluation/errors?limit=${limit}`);
+    return handleResponse<{ success: boolean; data: ClassificationErrorAnalysis | RegressionErrorAnalysis }>(res);
+  },
+
+  async getCalibration(runId: string): Promise<{ success: boolean; data: any }> {
+    const res = await fetch(`${BASE_URL}/runs/${runId}/evaluation/calibration`);
+    return handleResponse<{ success: boolean; data: any }>(res);
+  },
+
+  async getDiagnostics(runId: string): Promise<{ success: boolean; data: GeneralizationDiagnostics }> {
+    const res = await fetch(`${BASE_URL}/runs/${runId}/evaluation/diagnostics`);
+    return handleResponse<{ success: boolean; data: GeneralizationDiagnostics }>(res);
+  },
+
+  async getModelComparison(runId: string): Promise<{ success: boolean; data: ComparisonSummary }> {
+    const res = await fetch(`${BASE_URL}/runs/${runId}/evaluation/comparison`);
+    return handleResponse<{ success: boolean; data: ComparisonSummary }>(res);
+  },
+
+  async getNativeFeatureImportance(runId: string): Promise<{ success: boolean; data: FeatureImportanceResponse }> {
+    const res = await fetch(`${BASE_URL}/runs/${runId}/evaluation/importance`);
+    return handleResponse<{ success: boolean; data: FeatureImportanceResponse }>(res);
+  },
+
+  async getPermutationImportance(runId: string, nRepeats: number = 5): Promise<{ success: boolean; data: FeatureImportanceResponse }> {
+    const res = await fetch(`${BASE_URL}/runs/${runId}/evaluation/permutation?n_repeats=${nRepeats}`);
+    return handleResponse<{ success: boolean; data: FeatureImportanceResponse }>(res);
+  },
+
+  // Explainability (SHAP) API endpoints
+  async triggerShap(runId: string, sampleSize: number = 500): Promise<{ success: boolean; message: string; run_id: string; status: string }> {
+    const res = await fetch(`${BASE_URL}/runs/${runId}/explainability/shap?sample_size=${sampleSize}`, {
+      method: 'POST'
+    });
+    return handleResponse<{ success: boolean; message: string; run_id: string; status: string }>(res);
+  },
+
+  async getShapStatus(runId: string): Promise<{ success: boolean; run_id: string; data: ShapStatusResponse }> {
+    const res = await fetch(`${BASE_URL}/runs/${runId}/explainability/shap/status`);
+    return handleResponse<{ success: boolean; run_id: string; data: ShapStatusResponse }>(res);
+  },
+
+  async getShapSummary(runId: string, maxFeatures: number = 20): Promise<{ success: boolean; run_id: string; data: ShapSummaryResponse }> {
+    const res = await fetch(`${BASE_URL}/runs/${runId}/explainability/shap?max_features=${maxFeatures}`);
+    return handleResponse<{ success: boolean; run_id: string; data: ShapSummaryResponse }>(res);
+  },
+
+  async getShapDependence(runId: string, feature: string): Promise<{ success: boolean; run_id: string; data: ShapDependenceResponse }> {
+    const res = await fetch(`${BASE_URL}/runs/${runId}/explainability/dependence?feature=${encodeURIComponent(feature)}`);
+    return handleResponse<{ success: boolean; run_id: string; data: ShapDependenceResponse }>(res);
+  },
+
+  async getLocalExplanation(runId: string, predictionId: number): Promise<{ success: boolean; run_id: string; data: LocalExplanationResponse }> {
+    const res = await fetch(`${BASE_URL}/runs/${runId}/explainability/local/${predictionId}`);
+    return handleResponse<{ success: boolean; run_id: string; data: LocalExplanationResponse }>(res);
   }
 };

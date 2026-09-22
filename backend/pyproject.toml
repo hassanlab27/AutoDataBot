@@ -16,6 +16,7 @@ dependencies = [
     "joblib>=1.4.0",
     "python-multipart>=0.0.18",
     "charset-normalizer>=3.4.0",
+    "shap>=0.45.0",
 ]
 
 [project.optional-dependencies]

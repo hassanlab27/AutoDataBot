@@ -15,11 +15,13 @@ import { Target, CheckSquare, Sliders, ClipboardCheck, CheckCircle2, AlertCircle
 interface PreprocessingDashboardProps {
   datasetId: string;
   columns: Array<{ name: string; inferred_dtype: string }>;
+  onNavigateToEvaluation?: (runId: string) => void;
 }
 
 export const PreprocessingDashboard: React.FC<PreprocessingDashboardProps> = ({
   datasetId,
-  columns
+  columns,
+  onNavigateToEvaluation
 }) => {
   const [step, setStep] = useState<number>(1);
   const [selectedTarget, setSelectedTarget] = useState<string | null>(null);
@@ -260,6 +262,7 @@ export const PreprocessingDashboard: React.FC<PreprocessingDashboardProps> = ({
         <PreprocessingResults
           result={preparedResult}
           onReset={handleReset}
+          onNavigateToEvaluation={onNavigateToEvaluation}
         />
       )}
     </div>
