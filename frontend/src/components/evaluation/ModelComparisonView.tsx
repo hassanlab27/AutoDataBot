@@ -54,81 +54,95 @@ export const ModelComparisonView: React.FC<ModelComparisonViewProps> = ({
   };
 
   return (
-    <div className="space-y-8 animate-fadeIn">
+    <div className="eval-container">
       {/* Informational Header Notice */}
-      <div className="p-4 bg-slate-900/80 border border-slate-800 rounded-2xl flex items-start gap-3">
-        <Info size={18} className="text-indigo-400 mt-0.5 shrink-0" />
-        <div className="text-xs text-slate-300">
-          <span className="font-bold text-white">Generalization Diagnostics:</span> This comparison visualizes the performance stability between validation scores and untouched held-out test scores. Phase 4 selected the final winning model based strictly on validation benchmarks.
+      <div className="eval-notice-box">
+        <Info size={18} style={{ color: '#818cf8', flexShrink: 0, marginTop: '2px' }} />
+        <div>
+          <span style={{ fontWeight: 800, color: '#ffffff' }}>Generalization Diagnostics & Benchmark Stability: </span>
+          This view visualizes how candidate models performed during cross-validated training compared against untouched, held-out test benchmarks.
+          Phase 4 selected the final winning estimator based on generalization criteria without lookahead bias.
         </div>
       </div>
 
       {/* Validation vs Test Grouped Bar Chart */}
-      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl">
+      <div className="eval-card">
+        <div className="eval-card-header">
+          <div>
+            <h3 className="eval-card-title">Generalization Comparison: Validation vs. Held-out Test</h3>
+            <p className="eval-card-desc">Comparing benchmark scores across all architectures to detect overfitting</p>
+          </div>
+          <span className="eval-badge eval-badge-purple">Metric: {primary_metric}</span>
+        </div>
         <PlotlyChart data={groupedChartData} layout={groupedChartLayout} style={{ width: '100%', height: '400px' }} />
       </div>
 
       {/* Complete Comparison Table */}
-      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl">
-        <div className="pb-4 border-b border-slate-800 mb-4">
-          <h3 className="text-base font-bold text-white">Candidate Models Comparison Table</h3>
-          <p className="text-xs text-slate-400">All trained architectures sorted by validation benchmark performance</p>
+      <div className="eval-card">
+        <div className="eval-card-header">
+          <div>
+            <h3 className="eval-card-title">Candidate Models Comparison Table</h3>
+            <p className="eval-card-desc">All trained candidate models sorted by validation benchmark performance</p>
+          </div>
+          <span className="eval-badge eval-badge-indigo">{models.length} Models Trained</span>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
+        <div className="eval-table-container">
+          <table className="eval-table">
             <thead>
-              <tr className="border-b border-slate-800 text-slate-400 font-mono uppercase text-[11px]">
-                <th className="py-3 px-4">Model Name</th>
-                <th className="py-3 px-4">Engine</th>
-                <th className="py-3 px-4">Validation {primary_metric}</th>
-                <th className="py-3 px-4">Held-out Test {primary_metric}</th>
-                <th className="py-3 px-4">Generalization Gap</th>
-                <th className="py-3 px-4">Training Time</th>
-                <th className="py-3 px-4 text-right">Status</th>
+              <tr>
+                <th>Model Architecture</th>
+                <th>Engine</th>
+                <th>Validation {primary_metric}</th>
+                <th>Held-out Test {primary_metric}</th>
+                <th>Generalization Gap</th>
+                <th>Training Duration</th>
+                <th style={{ textAlign: 'right' }}>Status</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60 font-mono">
+            <tbody>
               {models.map((m) => (
                 <tr
                   key={m.model_id}
-                  className={`transition-colors ${
-                    m.is_winner
-                      ? 'bg-indigo-950/40 text-white font-bold'
-                      : 'hover:bg-slate-800/30 text-slate-300'
-                  }`}
+                  className={m.is_winner ? 'eval-row-selected' : ''}
                 >
-                  <td className="py-3 px-4 flex items-center gap-2">
-                    {m.is_winner && <span className="text-amber-400">👑</span>}
-                    {m.is_naive_baseline && <span className="text-slate-500">⚓</span>}
-                    <span>{m.model_name}</span>
+                  <td style={{ fontWeight: 700, color: m.is_winner ? '#ffffff' : '#e2e8f0' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      {m.is_winner && <span title="Winning Model" style={{ fontSize: '1rem' }}>👑</span>}
+                      {m.is_naive_baseline && <span title="Naive Baseline" style={{ fontSize: '1rem' }}>⚓</span>}
+                      <span>{m.model_name}</span>
+                    </div>
                   </td>
-                  <td className="py-3 px-4 uppercase text-[11px] text-slate-400">{m.engine}</td>
-                  <td className="py-3 px-4 font-bold text-slate-100">
+                  <td style={{ textTransform: 'uppercase', fontSize: '0.75rem', color: 'var(--eval-text-muted)', fontFamily: 'monospace' }}>
+                    {m.engine}
+                  </td>
+                  <td style={{ fontWeight: 700, color: '#f8fafc', fontFamily: 'monospace' }}>
                     {formatScore(m.validation_score)}
                   </td>
-                  <td className="py-3 px-4 font-bold text-emerald-400">
+                  <td style={{ fontWeight: 700, color: '#34d399', fontFamily: 'monospace' }}>
                     {formatScore(m.test_score)}
                   </td>
-                  <td className="py-3 px-4 text-indigo-300">
-                    {m.generalization_gap !== null
+                  <td style={{ color: '#a5b4fc', fontFamily: 'monospace' }}>
+                    {m.generalization_gap !== null && m.generalization_gap !== undefined
                       ? (m.generalization_gap > 0 ? `+${formatScore(m.generalization_gap)}` : formatScore(m.generalization_gap))
                       : '—'}
                   </td>
-                  <td className="py-3 px-4 text-slate-400">
+                  <td style={{ color: 'var(--eval-text-muted)', fontFamily: 'monospace' }}>
                     {m.training_time_seconds !== undefined && m.training_time_seconds !== null ? `${Number(m.training_time_seconds).toFixed(2)}s` : '—'}
                   </td>
-                  <td className="py-3 px-4 text-right">
+                  <td style={{ textAlign: 'right' }}>
                     {m.is_winner ? (
-                      <span className="px-2.5 py-1 rounded-full text-[10px] uppercase font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                      <span className="eval-badge eval-badge-amber">
                         Selected Winner
                       </span>
                     ) : m.is_naive_baseline ? (
-                      <span className="px-2 py-0.5 rounded text-[10px] uppercase font-bold bg-slate-800 text-slate-400">
-                        Naive Baseline
+                      <span className="eval-badge eval-badge-indigo">
+                        Baseline
                       </span>
                     ) : (
-                      <span className="text-slate-500 text-[11px]">Candidate</span>
+                      <span className="eval-badge" style={{ background: 'rgba(255, 255, 255, 0.05)', color: '#94a3b8' }}>
+                        Candidate
+                      </span>
                     )}
                   </td>
                 </tr>

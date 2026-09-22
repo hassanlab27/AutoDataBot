@@ -8,6 +8,7 @@ import { ErrorAnalysisView } from './ErrorAnalysisView';
 import { ExplainabilityView } from './ExplainabilityView';
 import { ModelComparisonView } from './ModelComparisonView';
 import { ErrorBoundary } from '../common/ErrorBoundary';
+import './evaluation.css';
 import { BarChart3, AlertOctagon, Brain, GitCompare, RefreshCw, AlertCircle } from 'lucide-react';
 
 interface EvaluationDashboardProps {
@@ -87,29 +88,38 @@ export const EvaluationDashboard: React.FC<EvaluationDashboardProps> = ({
 
   if (isLoading && !evaluation) {
     return (
-      <div className="p-12 flex flex-col items-center justify-center space-y-4 text-center">
-        <RefreshCw size={36} className="text-indigo-400 animate-spin" />
-        <h3 className="text-lg font-bold text-white">Loading Model Evaluation & Diagnostics...</h3>
-        <p className="text-xs text-slate-400">Loading performance metrics, confusion matrices, and attributions</p>
+      <div className="eval-card" style={{ padding: '3.5rem 2rem', textAlign: 'center', maxWidth: '600px', margin: '2rem auto' }}>
+        <div style={{ display: 'inline-flex', padding: '1rem', borderRadius: '50%', background: 'rgba(99, 102, 241, 0.12)', marginBottom: '1.25rem' }}>
+          <RefreshCw size={36} className="text-indigo-400 spin" />
+        </div>
+        <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#ffffff', marginBottom: '0.5rem' }}>
+          Analyzing Model Performance & Generalization...
+        </h3>
+        <p style={{ fontSize: '0.85rem', color: 'var(--eval-text-muted)', margin: 0 }}>
+          Computing confusion matrices, ROC/PR curves, probability calibration, and error distributions.
+        </p>
       </div>
     );
   }
 
   if (errorMsg || !evaluation) {
     return (
-      <div className="p-8 bg-slate-900/60 border border-slate-800 rounded-2xl text-center max-w-xl mx-auto my-8">
-        <AlertCircle size={40} className="text-amber-400 mx-auto mb-3" />
-        <h3 className="text-base font-bold text-white mb-1">Evaluation Unavailable</h3>
-        <p className="text-xs text-slate-400 mb-4">
-          {errorMsg || 'No completed training runs found for this dataset. Please run AutoML training first in Phase 4.'}
+      <div className="eval-card" style={{ padding: '2.5rem', textAlign: 'center', maxWidth: '580px', margin: '2rem auto' }}>
+        <AlertCircle size={44} className="text-amber-400" style={{ margin: '0 auto 1rem auto' }} />
+        <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#ffffff', marginBottom: '0.5rem' }}>
+          Model Evaluation Unavailable
+        </h3>
+        <p style={{ fontSize: '0.85rem', color: 'var(--eval-text-muted)', marginBottom: '1.5rem', lineHeight: 1.5 }}>
+          {errorMsg || 'No completed training runs found for this dataset. Train candidate models in the Prepare Dataset section to generate diagnostic evaluations.'}
         </p>
         {runs.length > 0 && (
-          <div className="text-xs text-slate-400">
-            Available runs:{' '}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.75rem', fontSize: '0.825rem', color: 'var(--eval-text-muted)' }}>
+            <span>Available runs:</span>
             <select
               value={activeRunId || ''}
               onChange={(e) => setActiveRunId(e.target.value)}
-              className="bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-1"
+              className="select-input"
+              style={{ padding: '0.45rem 0.85rem', fontSize: '0.8rem' }}
             >
               {runs.map((r) => (
                 <option key={r.run_id} value={r.run_id}>{r.run_id} ({r.status})</option>
@@ -126,8 +136,8 @@ export const EvaluationDashboard: React.FC<EvaluationDashboardProps> = ({
     : true;
 
   return (
-    <div className="space-y-6">
-      {/* Header Spotlight */}
+    <div className="eval-container">
+      {/* 1. Header Spotlight Card */}
       <ErrorBoundary fallbackTitle="Evaluation Header Unavailable">
         <EvaluationHeader
           evaluation={evaluation}
@@ -137,92 +147,98 @@ export const EvaluationDashboard: React.FC<EvaluationDashboardProps> = ({
         />
       </ErrorBoundary>
 
-      {/* Sub-navigation Tabs */}
-      <div className="flex flex-wrap items-center gap-2 bg-slate-950/70 p-1.5 rounded-xl border border-slate-800">
+      {/* 2. Sub-navigation Tabs */}
+      <nav
+        className="eval-nav-bar"
+        role="tablist"
+        aria-label="Model Evaluation Sections"
+      >
         <button
+          role="tab"
+          id="eval-tab-performance"
+          aria-selected={activeSubTab === 'performance'}
+          aria-controls="eval-panel-performance"
           onClick={() => setActiveSubTab('performance')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-            activeSubTab === 'performance'
-              ? 'bg-indigo-600 text-white shadow-md'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-          }`}
+          className={`eval-nav-btn ${activeSubTab === 'performance' ? 'eval-nav-btn-active' : ''}`}
         >
-          <BarChart3 size={15} />
+          <BarChart3 size={16} />
           <span>Model Performance</span>
         </button>
 
         <button
+          role="tab"
+          id="eval-tab-errors"
+          aria-selected={activeSubTab === 'errors'}
+          aria-controls="eval-panel-errors"
           onClick={() => setActiveSubTab('errors')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-            activeSubTab === 'errors'
-              ? 'bg-indigo-600 text-white shadow-md'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-          }`}
+          className={`eval-nav-btn ${activeSubTab === 'errors' ? 'eval-nav-btn-active' : ''}`}
         >
-          <AlertOctagon size={15} />
+          <AlertOctagon size={16} />
           <span>Error Analysis</span>
         </button>
 
         <button
+          role="tab"
+          id="eval-tab-explainability"
+          aria-selected={activeSubTab === 'explainability'}
+          aria-controls="eval-panel-explainability"
           onClick={() => setActiveSubTab('explainability')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-            activeSubTab === 'explainability'
-              ? 'bg-gradient-to-r from-pink-600 to-indigo-600 text-white shadow-md'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-          }`}
+          className={`eval-nav-btn ${activeSubTab === 'explainability' ? 'eval-nav-btn-explain' : ''}`}
         >
-          <Brain size={15} />
+          <Brain size={16} />
           <span>Feature Importance & SHAP</span>
         </button>
 
         <button
+          role="tab"
+          id="eval-tab-comparison"
+          aria-selected={activeSubTab === 'comparison'}
+          aria-controls="eval-panel-comparison"
           onClick={() => setActiveSubTab('comparison')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all ${
-            activeSubTab === 'comparison'
-              ? 'bg-indigo-600 text-white shadow-md'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-          }`}
+          className={`eval-nav-btn ${activeSubTab === 'comparison' ? 'eval-nav-btn-active' : ''}`}
         >
-          <GitCompare size={15} />
+          <GitCompare size={16} />
           <span>Model Comparison</span>
         </button>
-      </div>
+      </nav>
 
-      {/* Tab Contents */}
-      <ErrorBoundary fallbackTitle="Tab Content Display Error" fallbackMessage="Could not render this evaluation view due to an unexpected format. Other tabs are available.">
-        {activeSubTab === 'performance' && isClassification && (
-          <ClassificationPerformanceView
-            performance={evaluation.performance as any}
-          />
-        )}
+      {/* 3. Tab Contents */}
+      <ErrorBoundary fallbackTitle="Tab Content Display Error" fallbackMessage="Could not render this evaluation view due to an unexpected format. Other tabs remain functional.">
+        <div id={`eval-panel-${activeSubTab}`} role="tabpanel" aria-labelledby={`eval-tab-${activeSubTab}`}>
+          {activeSubTab === 'performance' && isClassification && (
+            <ClassificationPerformanceView
+              performance={evaluation.performance as any}
+            />
+          )}
 
-        {activeSubTab === 'performance' && !isClassification && (
-          <RegressionPerformanceView
-            performance={evaluation.performance as any}
-          />
-        )}
+          {activeSubTab === 'performance' && !isClassification && (
+            <RegressionPerformanceView
+              performance={evaluation.performance as any}
+            />
+          )}
 
-        {activeSubTab === 'errors' && (
-          <ErrorAnalysisView
-            errorAnalysis={evaluation.error_analysis}
-            problemType={evaluation.problem_type}
-            onExplainPrediction={handleExplainPrediction}
-          />
-        )}
+          {activeSubTab === 'errors' && (
+            <ErrorAnalysisView
+              errorAnalysis={evaluation.error_analysis}
+              problemType={evaluation.problem_type}
+              onExplainPrediction={handleExplainPrediction}
+            />
+          )}
 
-        {activeSubTab === 'explainability' && (
-          <ExplainabilityView
-            runId={activeRunId!}
-            problemType={evaluation.problem_type}
-            initialPredictionId={jumpToPredictionId}
-          />
-        )}
+          {activeSubTab === 'explainability' && (
+            <ExplainabilityView
+              runId={activeRunId!}
+              problemType={evaluation.problem_type}
+              initialPredictionId={jumpToPredictionId}
+            />
+          )}
 
-        {activeSubTab === 'comparison' && (
-          <ModelComparisonView
-            comparison={evaluation.comparison}
-          />
-        )}
+          {activeSubTab === 'comparison' && (
+            <ModelComparisonView
+              comparison={evaluation.comparison}
+            />
+          )}
+        </div>
       </ErrorBoundary>
     </div>
   );

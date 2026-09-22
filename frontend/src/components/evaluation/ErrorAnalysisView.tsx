@@ -36,40 +36,42 @@ export const ErrorAnalysisView: React.FC<ErrorAnalysisViewProps> = ({
   const largestErrors = regErrors?.largest_absolute_errors || [];
 
   return (
-    <div className="space-y-8 animate-fadeIn">
+    <div className="eval-container">
       {/* Error Analysis Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4">
-          <div className="text-xs text-slate-400 uppercase font-mono">Test Samples Evaluated</div>
-          <div className="text-2xl font-black font-mono text-white mt-1">
-            {totalSamples}
-          </div>
+      <div className="eval-grid-4">
+        <div className="eval-stat-card">
+          <span className="eval-stat-label">Evaluated Samples</span>
+          <span className="eval-stat-val eval-stat-val-indigo">{totalSamples}</span>
+          <span className="eval-stat-subtext">Held-out Test Partition</span>
         </div>
 
         {isClassification && clsErrors && (
           <>
-            <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4">
-              <div className="text-xs text-slate-400 uppercase font-mono">Misclassifications</div>
-              <div className="text-2xl font-black font-mono text-rose-400 mt-1">
+            <div className="eval-stat-card">
+              <span className="eval-stat-label">Misclassifications</span>
+              <span className="eval-stat-val eval-stat-val-rose">
                 {clsErrors.misclassification_count ?? 0}
-              </div>
+              </span>
+              <span className="eval-stat-subtext">Incorrect Test Labels</span>
             </div>
 
-            <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4">
-              <div className="text-xs text-slate-400 uppercase font-mono">Test Error Rate</div>
-              <div className="text-2xl font-black font-mono text-rose-300 mt-1">
+            <div className="eval-stat-card">
+              <span className="eval-stat-label">Test Error Rate</span>
+              <span className="eval-stat-val eval-stat-val-rose">
                 {clsErrors.error_rate !== undefined && clsErrors.error_rate !== null
                   ? `${(clsErrors.error_rate * 100).toFixed(2)}%`
                   : '—'}
-              </div>
+              </span>
+              <span className="eval-stat-subtext">1.0 − Accuracy</span>
             </div>
 
             {clsErrors.false_positives !== null && clsErrors.false_positives !== undefined && (
-              <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4">
-                <div className="text-xs text-slate-400 uppercase font-mono">FP / FN Breakdown</div>
-                <div className="text-xl font-black font-mono text-slate-200 mt-1">
-                  FP: <span className="text-amber-400">{clsErrors.false_positives}</span> | FN: <span className="text-rose-400">{clsErrors.false_negatives}</span>
-                </div>
+              <div className="eval-stat-card">
+                <span className="eval-stat-label">FP / FN Breakdown</span>
+                <span className="eval-stat-val" style={{ fontSize: '1.25rem' }}>
+                  FP: <b style={{ color: '#fcd34d' }}>{clsErrors.false_positives}</b> | FN: <b style={{ color: '#fb7185' }}>{clsErrors.false_negatives}</b>
+                </span>
+                <span className="eval-stat-subtext">Type I vs Type II Errors</span>
               </div>
             )}
           </>
@@ -77,23 +79,25 @@ export const ErrorAnalysisView: React.FC<ErrorAnalysisViewProps> = ({
 
         {!isClassification && regErrors && (
           <>
-            <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4">
-              <div className="text-xs text-slate-400 uppercase font-mono">Max Absolute Error</div>
-              <div className="text-2xl font-black font-mono text-rose-400 mt-1">
+            <div className="eval-stat-card">
+              <span className="eval-stat-label">Max Absolute Error</span>
+              <span className="eval-stat-val eval-stat-val-rose">
                 {largestErrors.length > 0 ? formatScore(largestErrors[0]) : '—'}
-              </div>
+              </span>
+              <span className="eval-stat-subtext">Worst Single Sample Error</span>
             </div>
 
-            <div className="bg-slate-900/80 border border-slate-800 rounded-xl p-4">
-              <div className="text-xs text-slate-400 uppercase font-mono">Top 5 Mean Error</div>
-              <div className="text-2xl font-black font-mono text-rose-300 mt-1">
+            <div className="eval-stat-card">
+              <span className="eval-stat-label">Top 5 Mean Error</span>
+              <span className="eval-stat-val eval-stat-val-rose">
                 {largestErrors.length > 0
                   ? formatScore(
                       largestErrors.slice(0, 5).reduce((a, b) => a + b, 0) /
                         Math.min(5, largestErrors.length)
                     )
                   : '—'}
-              </div>
+              </span>
+              <span className="eval-stat-subtext">Average of Top 5 Errors</span>
             </div>
           </>
         )}
@@ -101,24 +105,29 @@ export const ErrorAnalysisView: React.FC<ErrorAnalysisViewProps> = ({
 
       {/* Most Confused Pairs (Classification Only) */}
       {isClassification && clsErrors && (clsErrors.most_confused_pairs || []).length > 0 && (
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg">
-          <h3 className="text-sm font-bold uppercase tracking-wider text-slate-300 mb-3 flex items-center gap-2">
-            <AlertOctagon size={16} className="text-amber-400" />
-            Most Confused Class Pairs
-          </h3>
-          <div className="flex flex-wrap gap-3">
+        <div className="eval-card">
+          <div className="eval-card-header">
+            <div>
+              <h3 className="eval-card-title" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <AlertOctagon size={18} style={{ color: '#f59e0b' }} />
+                Most Confused Class Pairs
+              </h3>
+              <p className="eval-card-desc">Specific target labels that the model frequently mistakes for one another</p>
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
             {(clsErrors.most_confused_pairs || []).map((pair, idx) => (
-              <div key={idx} className="bg-slate-950 px-4 py-2.5 rounded-xl border border-slate-800 flex items-center gap-3 text-xs">
+              <div key={idx} className="eval-chip">
                 <div>
-                  <span className="text-slate-400">Actual:</span> <span className="font-bold text-rose-400">{pair.actual}</span>
+                  <span style={{ color: 'var(--eval-text-muted)' }}>Actual: </span>
+                  <span style={{ fontWeight: 700, color: '#fb7185' }}>{pair.actual}</span>
                 </div>
-                <ChevronRight size={14} className="text-slate-600" />
+                <ChevronRight size={14} style={{ color: 'var(--eval-text-dim)' }} />
                 <div>
-                  <span className="text-slate-400">Predicted:</span> <span className="font-bold text-indigo-400">{pair.predicted}</span>
+                  <span style={{ color: 'var(--eval-text-muted)' }}>Predicted: </span>
+                  <span style={{ fontWeight: 700, color: '#a5b4fc' }}>{pair.predicted}</span>
                 </div>
-                <span className="ml-2 px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 font-mono font-bold">
-                  {pair.count} times
-                </span>
+                <span className="eval-chip-count">{pair.count} cases</span>
               </div>
             ))}
           </div>
@@ -126,73 +135,82 @@ export const ErrorAnalysisView: React.FC<ErrorAnalysisViewProps> = ({
       )}
 
       {/* Top 20 Worst Predictions Table */}
-      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl">
-        <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-800 mb-4">
+      <div className="eval-card">
+        <div className="eval-card-header">
           <div>
-            <h3 className="text-base font-bold text-white">Top 20 Worst Test Predictions</h3>
-            <p className="text-xs text-slate-400">
+            <h3 className="eval-card-title">Worst Test Predictions</h3>
+            <p className="eval-card-desc">
               {isClassification
-                ? 'Ranked by highest model confidence in incorrect predictions'
+                ? 'Ranked by highest model confidence in incorrect predictions (most overconfident mistakes)'
                 : 'Ranked by largest absolute difference between actual and predicted target'}
             </p>
           </div>
-          <span className="text-xs font-mono text-slate-500">
-            Showing top {worstPredictions.length} cases (privacy preserved)
+          <span className="eval-badge eval-badge-indigo">
+            Top {worstPredictions.length} Outliers
           </span>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
+        <div className="eval-table-container">
+          <table className="eval-table">
             <thead>
-              <tr className="border-b border-slate-800 text-slate-400 font-mono uppercase text-[11px]">
-                <th className="py-2.5 px-3">Test Row #</th>
-                <th className="py-2.5 px-3">Actual Value</th>
-                <th className="py-2.5 px-3">Predicted Value</th>
-                {isClassification && <th className="py-2.5 px-3">Confidence / Prob</th>}
-                {!isClassification && <th className="py-2.5 px-3">Residual</th>}
-                {!isClassification && <th className="py-2.5 px-3">Absolute Error</th>}
-                <th className="py-2.5 px-3 text-right">Actions</th>
+              <tr>
+                <th>Test Row #</th>
+                <th>Actual Value</th>
+                <th>Predicted Value</th>
+                {isClassification && <th>Confidence / Prob</th>}
+                {!isClassification && <th>Residual</th>}
+                {!isClassification && <th>Absolute Error</th>}
+                <th style={{ textAlign: 'right' }}>Diagnostic Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/60 font-mono">
+            <tbody>
               {worstPredictions.map((pred) => {
                 const isSelected = selectedRow?.id === pred.id;
                 return (
                   <tr
                     key={pred.id}
                     onClick={() => setSelectedRow(pred)}
-                    className={`cursor-pointer transition-colors ${
-                      isSelected ? 'bg-indigo-950/40 text-white' : 'hover:bg-slate-800/40 text-slate-300'
-                    }`}
+                    className={isSelected ? 'eval-row-selected' : ''}
+                    style={{ cursor: 'pointer' }}
+                    tabIndex={0}
+                    role="button"
+                    aria-label={`Inspect features for test row ${pred.id}`}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        setSelectedRow(pred);
+                      }
+                    }}
                   >
-                    <td className="py-2.5 px-3 font-bold text-slate-400">#{pred.id}</td>
-                    <td className="py-2.5 px-3 font-semibold text-emerald-400">{String(pred.actual)}</td>
-                    <td className="py-2.5 px-3 font-semibold text-rose-400">{String(pred.predicted)}</td>
+                    <td style={{ fontWeight: 700, color: '#94a3b8', fontFamily: 'monospace' }}>#{pred.id}</td>
+                    <td style={{ fontWeight: 700, color: '#34d399', fontFamily: 'monospace' }}>{String(pred.actual)}</td>
+                    <td style={{ fontWeight: 700, color: '#fb7185', fontFamily: 'monospace' }}>{String(pred.predicted)}</td>
                     {isClassification && (
-                      <td className="py-2.5 px-3 text-slate-300">
+                      <td style={{ color: '#cbd5e1', fontFamily: 'monospace' }}>
                         {pred.probability !== null && pred.probability !== undefined
                           ? `${(pred.probability * 100).toFixed(1)}%`
                           : '—'}
                       </td>
                     )}
                     {!isClassification && (
-                      <td className="py-2.5 px-3 text-indigo-300">
+                      <td style={{ color: '#a5b4fc', fontFamily: 'monospace' }}>
                         {pred.residual !== undefined ? (pred.residual > 0 ? `+${formatScore(pred.residual)}` : formatScore(pred.residual)) : '—'}
                       </td>
                     )}
                     {!isClassification && (
-                      <td className="py-2.5 px-3 text-rose-400 font-bold">
+                      <td style={{ color: '#fb7185', fontWeight: 700, fontFamily: 'monospace' }}>
                         {formatScore(pred.absolute_error)}
                       </td>
                     )}
-                    <td className="py-2.5 px-3 text-right">
+                    <td style={{ textAlign: 'right' }}>
                       {onExplainPrediction && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             onExplainPrediction(pred.id);
                           }}
-                          className="px-2.5 py-1 rounded bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-300 border border-indigo-500/30 text-[11px] font-sans font-medium flex items-center gap-1.5 ml-auto"
+                          className="eval-btn-primary eval-btn-sm"
+                          style={{ marginLeft: 'auto' }}
+                          title={`Explain sample #${pred.id} using SHAP`}
                         >
                           <Sparkles size={12} />
                           Explain with SHAP
@@ -208,20 +226,20 @@ export const ErrorAnalysisView: React.FC<ErrorAnalysisViewProps> = ({
 
         {/* Selected Prediction Feature Inspector */}
         {selectedRow && selectedRow.features && (
-          <div className="mt-6 pt-4 border-t border-slate-800 bg-slate-950/60 rounded-xl p-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-xs font-bold uppercase tracking-wider text-indigo-300 flex items-center gap-2">
+          <div className="eval-inspector-box">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div style={{ fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#a5b4fc', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <span>🔍</span> Features for Prediction #{selectedRow.id}
               </div>
-              <span className="text-[11px] text-slate-400">
-                Actual: <b className="text-white">{String(selectedRow.actual)}</b> | Predicted: <b className="text-rose-400">{String(selectedRow.predicted)}</b>
+              <span style={{ fontSize: '0.8rem', color: 'var(--eval-text-muted)' }}>
+                Actual: <b style={{ color: '#34d399' }}>{String(selectedRow.actual)}</b> | Predicted: <b style={{ color: '#fb7185' }}>{String(selectedRow.predicted)}</b>
               </span>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 text-xs font-mono">
+            <div className="eval-inspector-grid">
               {Object.entries(selectedRow.features).map(([feat, val]) => (
-                <div key={feat} className="bg-slate-900 px-3 py-2 rounded-lg border border-slate-800 truncate">
-                  <div className="text-[10px] text-slate-400 truncate">{feat}</div>
-                  <div className="text-slate-200 font-bold mt-0.5 truncate">{String(val)}</div>
+                <div key={feat} className="eval-inspector-item">
+                  <div className="eval-inspector-label" title={feat}>{feat}</div>
+                  <div className="eval-inspector-val" title={String(val)}>{String(val)}</div>
                 </div>
               ))}
             </div>

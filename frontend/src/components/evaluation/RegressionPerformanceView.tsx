@@ -136,109 +136,128 @@ export const RegressionPerformanceView: React.FC<RegressionPerformanceViewProps>
   };
 
   return (
-    <div className="space-y-8 animate-fadeIn">
+    <div className="eval-container">
       {/* Primary Metrics Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-        <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3 text-center">
-          <div className="text-[11px] font-mono text-slate-400 uppercase">MAE</div>
-          <div className="text-xl font-mono font-bold text-white mt-1">{formatScore(metrics.mae)}</div>
+      <div className="eval-grid-metrics">
+        <div className="eval-stat-card">
+          <span className="eval-stat-label">MAE</span>
+          <span className="eval-stat-val eval-stat-val-indigo">{formatScore(metrics.mae)}</span>
+          <span className="eval-stat-subtext">Mean Absolute Error</span>
         </div>
-        <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3 text-center">
-          <div className="text-[11px] font-mono text-slate-400 uppercase">RMSE</div>
-          <div className="text-xl font-mono font-bold text-white mt-1">{formatScore(metrics.rmse)}</div>
+        <div className="eval-stat-card">
+          <span className="eval-stat-label">RMSE</span>
+          <span className="eval-stat-val eval-stat-val-indigo">{formatScore(metrics.rmse)}</span>
+          <span className="eval-stat-subtext">Root Mean Squared</span>
         </div>
-        <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3 text-center">
-          <div className="text-[11px] font-mono text-slate-400 uppercase">R² Score</div>
-          <div className="text-xl font-mono font-bold text-white mt-1">{formatScore(metrics.r2)}</div>
+        <div className="eval-stat-card">
+          <span className="eval-stat-label">R² Score</span>
+          <span className="eval-stat-val eval-stat-val-green">{formatScore(metrics.r2)}</span>
+          <span className="eval-stat-subtext">Goodness of Fit</span>
         </div>
-        <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3 text-center">
-          <div className="text-[11px] font-mono text-slate-400 uppercase">Median AE</div>
-          <div className="text-xl font-mono font-bold text-white mt-1">{formatScore(metrics.median_absolute_error)}</div>
+        <div className="eval-stat-card">
+          <span className="eval-stat-label">Median AE</span>
+          <span className="eval-stat-val">{formatScore(metrics.median_absolute_error)}</span>
+          <span className="eval-stat-subtext">Outlier Robust Error</span>
         </div>
-        <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3 text-center">
-          <div className="text-[11px] font-mono text-slate-400 uppercase">Expl. Var.</div>
-          <div className="text-xl font-mono font-bold text-white mt-1">{formatScore(metrics.explained_variance)}</div>
+        <div className="eval-stat-card">
+          <span className="eval-stat-label">Expl. Variance</span>
+          <span className="eval-stat-val">{formatScore(metrics.explained_variance)}</span>
+          <span className="eval-stat-subtext">Variance Fraction</span>
         </div>
-        <div className="bg-slate-900/70 border border-slate-800 rounded-xl p-3 text-center">
-          <div className="text-[11px] font-mono text-slate-400 uppercase">MAPE</div>
-          <div className="text-xl font-mono font-bold text-white mt-1">
+        <div className="eval-stat-card">
+          <span className="eval-stat-label">MAPE</span>
+          <span className="eval-stat-val">
             {metrics.mape !== null && metrics.mape !== undefined ? `${(metrics.mape * 100).toFixed(2)}%` : '—'}
-          </div>
+          </span>
+          <span className="eval-stat-subtext">Percentage Error</span>
         </div>
       </div>
 
       {/* Row 1: Actual vs Predicted & Residual Distribution */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="eval-grid-2">
         {/* Actual vs Predicted */}
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg flex flex-col">
-          <div className="pb-3 border-b border-slate-800 mb-4">
-            <h3 className="text-base font-bold text-white">Actual vs. Predicted Target</h3>
-            <p className="text-xs text-slate-400">Samples clustering tightly along the diagonal indicate strong calibration</p>
+        <div className="eval-card">
+          <div className="eval-card-header">
+            <div>
+              <h3 className="eval-card-title">Actual vs. Predicted Target</h3>
+              <p className="eval-card-desc">Tightly aligned points along the dashed 45° diagonal confirm high prediction accuracy</p>
+            </div>
+            <span className="eval-badge eval-badge-indigo">R² {formatScore(metrics?.r2)}</span>
           </div>
-          <div className="flex-1">
-            <PlotlyChart data={avpChartData} layout={avpLayout} style={{ width: '100%', height: '380px' }} />
-          </div>
+          <PlotlyChart data={avpChartData} layout={avpLayout} style={{ width: '100%', height: '380px' }} />
         </div>
 
         {/* Residual Distribution */}
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg flex flex-col">
-          <div className="pb-3 border-b border-slate-800 mb-4">
-            <h3 className="text-base font-bold text-white">Residual Distribution Histogram</h3>
-            <p className="text-xs text-slate-400">Unbiased errors should center around zero without strong skew</p>
+        <div className="eval-card">
+          <div className="eval-card-header">
+            <div>
+              <h3 className="eval-card-title">Residual Distribution Histogram</h3>
+              <p className="eval-card-desc">Unbiased model errors should center around zero with a bell-shaped distribution</p>
+            </div>
+            <span className="eval-badge eval-badge-purple">Mean {formatScore(residuals?.mean)}</span>
           </div>
-          <div className="flex-1">
-            <PlotlyChart data={resHistData} layout={resHistLayout} style={{ width: '100%', height: '380px' }} />
-          </div>
+          <PlotlyChart data={resHistData} layout={resHistLayout} style={{ width: '100%', height: '380px' }} />
         </div>
       </div>
 
       {/* Row 2: Residuals vs Predicted & Diagnostics */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="eval-grid-2">
         {/* Residuals vs Predicted */}
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg flex flex-col">
-          <div className="pb-3 border-b border-slate-800 mb-4">
-            <h3 className="text-base font-bold text-white">Residuals vs. Predicted Values</h3>
-            <p className="text-xs text-slate-400">Checks for heteroscedasticity (variance changes across prediction magnitudes)</p>
+        <div className="eval-card">
+          <div className="eval-card-header">
+            <div>
+              <h3 className="eval-card-title">Residuals vs. Predicted Values</h3>
+              <p className="eval-card-desc">Tests for heteroscedasticity (error variance drifting across target scales)</p>
+            </div>
           </div>
-          <div className="flex-1">
-            <PlotlyChart data={resVsPredData} layout={resVsPredLayout} style={{ width: '100%', height: '380px' }} />
-          </div>
+          <PlotlyChart data={resVsPredData} layout={resVsPredLayout} style={{ width: '100%', height: '380px' }} />
         </div>
 
         {/* Residual Diagnostics & Quantiles */}
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg flex flex-col justify-between">
+        <div className="eval-card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
           <div>
-            <div className="pb-3 border-b border-slate-800 mb-4">
-              <h3 className="text-base font-bold text-white">Residual Diagnostics & Quantiles</h3>
-              <p className="text-xs text-slate-400">Heuristic pattern indicators on test error distributions</p>
+            <div className="eval-card-header">
+              <div>
+                <h3 className="eval-card-title">Residual Diagnostics & Quantiles</h3>
+                <p className="eval-card-desc">Quantile boundaries and statistical heuristic warnings</p>
+              </div>
             </div>
 
             {/* Quantiles summary table */}
             {residuals && (residuals as any).quantiles && (
-              <div className="grid grid-cols-5 gap-2 text-center mb-6">
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(80px, 1fr))', gap: '0.65rem', marginBottom: '1.25rem' }}>
                 {Object.entries((residuals as any).quantiles).map(([q, val]) => (
-                  <div key={q} className="bg-slate-950 p-2.5 rounded-lg border border-slate-800">
-                    <div className="text-[10px] font-mono text-slate-400 uppercase">{q}</div>
-                    <div className="text-sm font-mono font-bold text-slate-200 mt-0.5">{formatScore(val as number)}</div>
+                  <div key={q} className="eval-stat-card-sm">
+                    <div className="label">{q}</div>
+                    <div className="value">{formatScore(val as number)}</div>
                   </div>
                 ))}
               </div>
             )}
 
             {/* Diagnostic Notes */}
-            <div className="space-y-2">
-              <div className="text-xs uppercase font-bold text-slate-400 tracking-wider">Pattern Notes</div>
-              {diagnostics_notes.map((note, idx) => (
-                <div key={idx} className="p-3 bg-slate-950/70 border border-slate-800 rounded-xl text-xs text-slate-300 flex items-start gap-2.5">
-                  <Info size={14} className="text-indigo-400 mt-0.5 shrink-0" />
-                  <span>{note}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+              <div style={{ fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 800, letterSpacing: '0.05em', color: 'var(--eval-text-muted)' }}>
+                Diagnostic Observations
+              </div>
+              {diagnostics_notes.length > 0 ? (
+                diagnostics_notes.map((note, idx) => (
+                  <div key={idx} className="eval-notice-box">
+                    <Info size={16} style={{ color: '#818cf8', flexShrink: 0, marginTop: '2px' }} />
+                    <span>{note}</span>
+                  </div>
+                ))
+              ) : (
+                <div className="eval-notice-box">
+                  <Info size={16} style={{ color: '#34d399', flexShrink: 0, marginTop: '2px' }} />
+                  <span>No severe residual anomalies, skewness, or extreme outliers detected in the test partition.</span>
                 </div>
-              ))}
+              )}
             </div>
           </div>
 
-          <div className="mt-4 pt-3 border-t border-slate-800 text-[11px] text-slate-500">
-            Statistical Note: Diagnostics flag heuristic signals and do not constitute formal mathematical proof of assumption violation.
+          <div style={{ marginTop: '1.5rem', paddingTop: '0.85rem', borderTop: '1px solid rgba(255, 255, 255, 0.08)', fontSize: '0.75rem', color: 'var(--eval-text-dim)' }}>
+            Statistical Notice: Diagnostics report automated heuristic flags on held-out test data and do not substitute for custom domain checks.
           </div>
         </div>
       </div>

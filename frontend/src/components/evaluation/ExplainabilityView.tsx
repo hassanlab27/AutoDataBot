@@ -8,7 +8,7 @@ import {
   LocalExplanationResponse
 } from '../../types/explainability';
 import { PlotlyChart } from '../eda/PlotlyChart';
-import { Sparkles, Brain, AlertCircle, RefreshCw, CheckCircle } from 'lucide-react';
+import { Sparkles, Brain, AlertCircle, RefreshCw, CheckCircle, Info } from 'lucide-react';
 
 interface ExplainabilityViewProps {
   runId: string;
@@ -266,13 +266,13 @@ export const ExplainabilityView: React.FC<ExplainabilityViewProps> = ({
   };
 
   return (
-    <div className="space-y-8 animate-fadeIn">
+    <div className="eval-container">
       {/* Global Disclaimer Banner */}
-      <div className="p-4 bg-indigo-950/30 border border-indigo-500/30 rounded-2xl flex items-start gap-3">
-        <Brain size={20} className="text-indigo-400 mt-0.5 shrink-0" />
-        <div className="text-xs text-slate-300 space-y-1">
-          <div className="font-bold text-white text-sm">Model Attribution & Explainability Principles</div>
-          <p>
+      <div className="eval-notice-box">
+        <Brain size={22} style={{ color: '#818cf8', flexShrink: 0, marginTop: '2px' }} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+          <div style={{ fontWeight: 800, color: '#ffffff', fontSize: '0.85rem' }}>Model Attribution & Explainability Principles</div>
+          <p style={{ margin: 0, fontSize: '0.8rem', lineHeight: 1.5, color: '#c7d2fe' }}>
             The values below describe how the trained model weighs and combines features to produce its outputs.
             Feature attributions and SHAP values describe <b>internal model mechanics</b> and <b>do not establish real-world causality</b>.
           </p>
@@ -280,38 +280,46 @@ export const ExplainabilityView: React.FC<ExplainabilityViewProps> = ({
       </div>
 
       {/* Row 1: Model Feature Importance & Permutation Importance */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="eval-grid-2">
         {/* Native Feature Importance */}
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg flex flex-col">
-          <div className="pb-3 border-b border-slate-800 mb-4">
-            <h3 className="text-base font-bold text-white">Model Feature Importance</h3>
-            <p className="text-xs text-slate-400">Native model weights/split frequencies from the winning estimator</p>
+        <div className="eval-card">
+          <div className="eval-card-header">
+            <div>
+              <h3 className="eval-card-title">Model Feature Importance</h3>
+              <p className="eval-card-desc">Native model weights or split frequencies from the winning estimator</p>
+            </div>
+            <span className="eval-badge eval-badge-indigo">Native Weights</span>
           </div>
           {nativeImp?.status === 'available' ? (
-            <div className="flex-1">
+            <div>
               <PlotlyChart data={nativeChartData} layout={nativeChartLayout} style={{ width: '100%', height: '380px' }} />
             </div>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center text-slate-500 text-sm p-6 text-center">
-              <AlertCircle size={28} className="text-slate-600 mb-2" />
-              <span>Native feature importance unavailable for this model architecture.</span>
-              <span className="text-xs text-slate-400 mt-1">Check permutation importance or SHAP below for model-agnostic explanations.</span>
+            <div style={{ minHeight: '340px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '1.5rem', color: 'var(--eval-text-muted)' }}>
+              <AlertCircle size={32} style={{ color: 'var(--eval-text-dim)', marginBottom: '0.75rem' }} />
+              <span style={{ fontWeight: 600 }}>Native feature importance is unavailable for this model architecture.</span>
+              <span style={{ fontSize: '0.75rem', color: 'var(--eval-text-dim)', marginTop: '0.35rem' }}>
+                Check permutation importance or SHAP below for model-agnostic explanations.
+              </span>
             </div>
           )}
         </div>
 
         {/* Permutation Importance */}
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-lg flex flex-col">
-          <div className="pb-3 border-b border-slate-800 mb-4">
-            <h3 className="text-base font-bold text-white">Permutation Feature Importance</h3>
-            <p className="text-xs text-slate-400">Model-agnostic evaluation computed strictly on validation data (5 shuffles)</p>
+        <div className="eval-card">
+          <div className="eval-card-header">
+            <div>
+              <h3 className="eval-card-title">Permutation Feature Importance</h3>
+              <p className="eval-card-desc">Model-agnostic evaluation computed strictly on validation data (5 shuffles)</p>
+            </div>
+            <span className="eval-badge eval-badge-emerald">Validation Shuffles</span>
           </div>
           {permImp?.status === 'available' ? (
-            <div className="flex-1">
+            <div>
               <PlotlyChart data={permChartData} layout={permChartLayout} style={{ width: '100%', height: '380px' }} />
             </div>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-slate-500 text-sm">
+            <div style={{ minHeight: '340px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--eval-text-dim)', fontSize: '0.85rem' }}>
               {loadingImp ? 'Calculating permutation importance...' : 'Permutation importance unavailable.'}
             </div>
           )}
@@ -319,27 +327,27 @@ export const ExplainabilityView: React.FC<ExplainabilityViewProps> = ({
       </div>
 
       {/* Row 2: SHAP Explainability Section */}
-      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl">
-        <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-800 mb-6">
+      <div className="eval-card">
+        <div className="eval-card-header">
           <div>
-            <div className="flex items-center gap-2">
-              <Sparkles size={18} className="text-pink-400" />
-              <h3 className="text-base font-bold text-white">SHAP (SHapley Additive exPlanations)</h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Sparkles size={18} style={{ color: '#ec4899' }} />
+              <h3 className="eval-card-title">SHAP (SHapley Additive exPlanations)</h3>
             </div>
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="eval-card-desc">
               Theoretically grounded Shapley values quantifying feature contributions to model outputs.
             </p>
           </div>
 
           {/* Trigger or status badge */}
-          <div className="flex items-center gap-3">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             {shapStatus?.status === 'completed' && (
-              <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5">
+              <span className="eval-badge eval-badge-emerald">
                 <CheckCircle size={14} /> SHAP Computed ({shapSummary?.explainer_type || 'Explainer'})
               </span>
             )}
             {shapStatus?.status === 'running' && (
-              <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center gap-1.5 animate-pulse">
+              <span className="eval-badge eval-badge-indigo">
                 <RefreshCw size={14} className="animate-spin" /> Computing SHAP in background...
               </span>
             )}
@@ -347,7 +355,8 @@ export const ExplainabilityView: React.FC<ExplainabilityViewProps> = ({
               <button
                 onClick={handleTriggerShap}
                 disabled={isTriggeringShap}
-                className="px-4 py-2 rounded-xl bg-gradient-to-r from-pink-600 to-indigo-600 hover:from-pink-500 hover:to-indigo-500 text-white text-xs font-bold shadow-lg transition-all flex items-center gap-2"
+                className="eval-btn-primary eval-btn-pink"
+                aria-label="Calculate SHAP explanations"
               >
                 <Sparkles size={14} />
                 Calculate SHAP Explanations
@@ -358,53 +367,65 @@ export const ExplainabilityView: React.FC<ExplainabilityViewProps> = ({
 
         {/* SHAP Status Notice if unavailable or failed */}
         {shapStatus?.status === 'unavailable' && (
-          <div className="p-4 bg-slate-950 border border-slate-800 rounded-xl text-center text-xs text-slate-400">
-            SHAP explanation is currently unavailable for this specific model configuration.
-            <div className="text-[11px] text-slate-500 mt-1">{shapStatus.reason}</div>
+          <div className="eval-notice-box eval-notice-warning" style={{ textAlign: 'center', justifyContent: 'center' }}>
+            <div>
+              SHAP explanation is currently unavailable for this specific model configuration.
+              <div style={{ fontSize: '0.75rem', marginTop: '0.25rem', opacity: 0.8 }}>{shapStatus.reason}</div>
+            </div>
           </div>
         )}
 
         {/* When SHAP is completed: Global Importance + Dependence */}
         {shapStatus?.status === 'completed' && shapSummary && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Global SHAP Mean Bar Chart */}
-              <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4">
-                <PlotlyChart data={shapGlobalChartData} layout={shapGlobalChartLayout} style={{ width: '100%', height: '380px' }} />
+          <div className="eval-grid-2">
+            {/* Global SHAP Mean Bar Chart */}
+            <div className="eval-card" style={{ background: 'rgba(10, 15, 29, 0.65)' }}>
+              <div className="eval-card-header">
+                <div>
+                  <h4 className="eval-card-title" style={{ fontSize: '0.95rem' }}>Global Feature Impact</h4>
+                  <p className="eval-card-desc">Mean |SHAP value| across evaluated test partition</p>
+                </div>
+              </div>
+              <PlotlyChart data={shapGlobalChartData} layout={shapGlobalChartLayout} style={{ width: '100%', height: '380px' }} />
+            </div>
+
+            {/* SHAP Dependence Analysis */}
+            <div className="eval-card" style={{ background: 'rgba(10, 15, 29, 0.65)', display: 'flex', flexDirection: 'column' }}>
+              <div className="eval-card-header">
+                <div>
+                  <h4 className="eval-card-title" style={{ fontSize: '0.95rem' }}>Feature Dependence</h4>
+                  <p className="eval-card-desc">Feature values vs corresponding SHAP attribution</p>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <label htmlFor="shap-dep-select" style={{ fontSize: '0.75rem', color: 'var(--eval-text-muted)', fontWeight: 600 }}>
+                    Feature:
+                  </label>
+                  <select
+                    id="shap-dep-select"
+                    value={selectedDepFeature}
+                    onChange={(e) => setSelectedDepFeature(e.target.value)}
+                    className="eval-select"
+                    aria-label="Select feature for SHAP dependence plot"
+                  >
+                    {shapSummary.features?.map((f) => (
+                      <option key={f} value={f}>{f}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
-              {/* SHAP Dependence Analysis */}
-              <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4 flex flex-col">
-                <div className="flex items-center justify-between gap-3 mb-3">
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-300">Feature Dependence</span>
-                  <div className="flex items-center gap-2">
-                    <label htmlFor="shap-dep-select" className="text-xs text-slate-400">Feature:</label>
-                    <select
-                      id="shap-dep-select"
-                      value={selectedDepFeature}
-                      onChange={(e) => setSelectedDepFeature(e.target.value)}
-                      className="bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-1 focus:outline-none focus:border-pink-500"
-                    >
-                      {shapSummary.features?.map((f) => (
-                        <option key={f} value={f}>{f}</option>
-                      ))}
-                    </select>
+              <div style={{ flex: 1 }}>
+                {loadingDep ? (
+                  <div style={{ height: '380px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', color: 'var(--eval-text-dim)' }}>
+                    Loading dependence plot...
                   </div>
-                </div>
-
-                <div className="flex-1">
-                  {loadingDep ? (
-                    <div className="h-[380px] flex items-center justify-center text-xs text-slate-500">
-                      Loading dependence plot...
-                    </div>
-                  ) : depData ? (
-                    <PlotlyChart data={depChartData} layout={depChartLayout} style={{ width: '100%', height: '380px' }} />
-                  ) : (
-                    <div className="h-[380px] flex items-center justify-center text-xs text-slate-500">
-                      Select a feature above to inspect its SHAP dependence.
-                    </div>
-                  )}
-                </div>
+                ) : depData ? (
+                  <PlotlyChart data={depChartData} layout={depChartLayout} style={{ width: '100%', height: '380px' }} />
+                ) : (
+                  <div style={{ height: '380px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', color: 'var(--eval-text-dim)' }}>
+                    Select a feature above to inspect its SHAP dependence.
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -412,76 +433,85 @@ export const ExplainabilityView: React.FC<ExplainabilityViewProps> = ({
       </div>
 
       {/* Row 3: Local Prediction-Level Explanation Inspector */}
-      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-6 shadow-xl">
-        <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-800 mb-6">
+      <div className="eval-card">
+        <div className="eval-card-header">
           <div>
-            <h3 className="text-base font-bold text-white">Local Prediction Explanation</h3>
-            <p className="text-xs text-slate-400">
+            <h3 className="eval-card-title">Local Prediction Explanation</h3>
+            <p className="eval-card-desc">
               Inspect feature-level positive and negative contributions for any individual test record
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <label htmlFor="pred-id-input" className="text-xs text-slate-400 font-mono">Test Sample ID:</label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <label htmlFor="pred-id-input" style={{ fontSize: '0.75rem', color: 'var(--eval-text-muted)', fontFamily: 'monospace' }}>
+              Test Row #:
+            </label>
             <input
               id="pred-id-input"
               type="number"
               min={0}
               value={localPredId}
               onChange={(e) => setLocalPredId(parseInt(e.target.value) || 0)}
-              className="w-20 bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-2.5 py-1.5 font-mono focus:outline-none focus:border-indigo-500"
+              className="eval-input"
+              style={{ width: '80px' }}
+              aria-label="Enter test sample row number to explain"
             />
             <button
               onClick={() => handleFetchLocalExplanation(localPredId)}
               disabled={loadingLocal}
-              className="px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-colors"
+              className="eval-btn-primary eval-btn-sm"
+              aria-label="Compute local explanation"
             >
-              {loadingLocal ? 'Computing...' : 'Explain'}
+              {loadingLocal ? 'Computing...' : 'Explain Sample'}
             </button>
           </div>
         </div>
 
         {/* Explanation Results */}
         {localExp && localExp.status === 'available' ? (
-          <div className="space-y-4">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             {/* Top row: Actual, Predicted, Prob */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                <div className="text-[10px] text-slate-400 uppercase font-mono">Sample #</div>
-                <div className="text-base font-mono font-bold text-white mt-0.5">#{localExp.prediction_id}</div>
+            <div className="eval-grid-4">
+              <div className="eval-stat-card">
+                <span className="eval-stat-label">Sample ID</span>
+                <span className="eval-stat-val">#{localExp.prediction_id}</span>
+                <span className="eval-stat-subtext">Test Partition Row</span>
               </div>
-              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                <div className="text-[10px] text-slate-400 uppercase font-mono">Actual Target</div>
-                <div className="text-base font-mono font-bold text-emerald-400 mt-0.5">{String(localExp.actual)}</div>
+              <div className="eval-stat-card">
+                <span className="eval-stat-label">Actual Target</span>
+                <span className="eval-stat-val eval-stat-val-green">{String(localExp.actual)}</span>
+                <span className="eval-stat-subtext">Ground Truth</span>
               </div>
-              <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                <div className="text-[10px] text-slate-400 uppercase font-mono">Model Predicted</div>
-                <div className="text-base font-mono font-bold text-indigo-400 mt-0.5">{String(localExp.predicted)}</div>
+              <div className="eval-stat-card">
+                <span className="eval-stat-label">Model Predicted</span>
+                <span className="eval-stat-val eval-stat-val-indigo">{String(localExp.predicted)}</span>
+                <span className="eval-stat-subtext">Selected Estimator</span>
               </div>
               {localExp.probability !== undefined && localExp.probability !== null && (
-                <div className="bg-slate-950 p-3 rounded-xl border border-slate-800">
-                  <div className="text-[10px] text-slate-400 uppercase font-mono">Model Probability</div>
-                  <div className="text-base font-mono font-bold text-purple-400 mt-0.5">
+                <div className="eval-stat-card">
+                  <span className="eval-stat-label">Confidence</span>
+                  <span className="eval-stat-val eval-stat-val-purple" style={{ color: '#d8b4fe' }}>
                     {(localExp.probability * 100).toFixed(1)}%
-                  </div>
+                  </span>
+                  <span className="eval-stat-subtext">Class Probability</span>
                 </div>
               )}
             </div>
 
             {/* Attribution Waterfall / Bar */}
-            <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4">
+            <div style={{ background: 'rgba(10, 15, 29, 0.6)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '12px', padding: '1rem' }}>
               <PlotlyChart data={localChartData} layout={localChartLayout} style={{ width: '100%', minHeight: '340px' }} />
             </div>
 
             {/* Local Disclaimer */}
-            <div className="p-3 bg-slate-950 border border-slate-800/80 rounded-xl text-xs text-slate-400 flex items-center gap-2">
-              <span className="text-indigo-400 font-bold">ℹ️</span>
-              <span>{localExp.disclaimer}</span>
+            <div className="eval-notice-box">
+              <Info size={16} style={{ color: '#818cf8', flexShrink: 0, marginTop: '2px' }} />
+              <span style={{ fontSize: '0.775rem' }}>{localExp.disclaimer}</span>
             </div>
           </div>
         ) : (
-          <div className="p-8 text-center text-slate-500 text-xs border border-dashed border-slate-800 rounded-xl">
-            Enter a sample ID above (or click "Explain with SHAP" from the Error Analysis table) to inspect its prediction attribution breakdown.
+          <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--eval-text-dim)', fontSize: '0.825rem', border: '1px dashed rgba(255, 255, 255, 0.1)', borderRadius: '14px' }}>
+            Enter a sample ID above (or click <b style={{ color: '#a5b4fc' }}>"Explain with SHAP"</b> in the Worst Test Predictions table) to inspect its prediction attribution breakdown.
           </div>
         )}
       </div>

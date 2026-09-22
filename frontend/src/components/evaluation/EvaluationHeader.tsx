@@ -1,6 +1,6 @@
 import React from 'react';
 import { EvaluationOverview } from '../../types/evaluation';
-import { Clock } from 'lucide-react';
+import { Clock, Zap, Award, Sparkles, AlertTriangle, CheckCircle2, ShieldAlert } from 'lucide-react';
 
 interface EvaluationHeaderProps {
   evaluation: EvaluationOverview;
@@ -15,23 +15,49 @@ export const EvaluationHeader: React.FC<EvaluationHeaderProps> = ({
   activeRunId,
   onSelectRun
 }) => {
-  const getDiagnosticBadge = (label?: string) => {
+  const getDiagnosticBadgeDetails = (label?: string) => {
     switch (label) {
       case 'Normal / Well-fit':
       case 'No obvious gap':
-        return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40';
+        return {
+          className: 'eval-badge eval-badge-emerald',
+          icon: <CheckCircle2 size={13} />,
+          text: label || 'Normal / Well-fit'
+        };
       case 'Moderate generalization gap':
       case 'Potential overfitting indicator':
       case 'Possible Overfitting':
-        return 'bg-amber-500/20 text-amber-300 border-amber-500/40';
+        return {
+          className: 'eval-badge eval-badge-amber',
+          icon: <AlertTriangle size={13} />,
+          text: label || 'Possible Overfitting'
+        };
       case 'Large generalization gap':
       case 'Severe Overfitting':
-        return 'bg-rose-500/20 text-rose-300 border-rose-500/40';
+        return {
+          className: 'eval-badge eval-badge-rose',
+          icon: <ShieldAlert size={13} />,
+          text: label || 'Severe Overfitting'
+        };
       case 'Potential underfitting indicator':
       case 'Underfitting':
-        return 'bg-orange-500/20 text-orange-300 border-orange-500/40';
+        return {
+          className: 'eval-badge eval-badge-amber',
+          icon: <AlertTriangle size={13} />,
+          text: label || 'Underfitting'
+        };
+      case 'Suspiciously High Performance':
+        return {
+          className: 'eval-badge eval-badge-purple',
+          icon: <Sparkles size={13} />,
+          text: 'Near-Perfect Score (Potential Leakage)'
+        };
       default:
-        return 'bg-slate-700/40 text-slate-300 border-slate-600/40';
+        return {
+          className: 'eval-badge eval-badge-indigo',
+          icon: <Award size={13} />,
+          text: label || 'Evaluated Model'
+        };
     }
   };
 
@@ -49,40 +75,45 @@ export const EvaluationHeader: React.FC<EvaluationHeaderProps> = ({
   const trainTime = evaluation.training_time_seconds ?? (evaluation as any).winning_model?.training_time_seconds;
   const predTime = evaluation.prediction_time_seconds ?? (evaluation as any).winning_model?.prediction_time_seconds;
 
-  return (
-    <div className="bg-slate-900/80 backdrop-blur border border-slate-800 rounded-2xl p-6 shadow-xl relative overflow-hidden mb-6">
-      {/* Background ambient glow */}
-      <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+  const diagBadge = getDiagnosticBadgeDetails(evaluation.diagnostics?.label);
 
-      {/* Top row: Title + Run Selector */}
-      <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-800">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-xl">🏆</span>
-            <span className="text-xs uppercase font-bold tracking-wider text-indigo-400">
-              Phase 5 Model Evaluation & Diagnostics
-            </span>
+  return (
+    <header className="eval-hero-header" aria-label="Model Evaluation Overview">
+      {/* Decorative ambient lighting */}
+      <div className="eval-card-glow" />
+
+      {/* Top Banner: Winner & Run Selector */}
+      <div className="eval-hero-top">
+        <div className="eval-title-group">
+          <div className="eval-subtitle">
+            <Award size={16} className="text-amber-400" />
+            <span>Winning Model Diagnostics & Generalization Assessment</span>
           </div>
-          <h2 className="text-2xl font-black text-white flex items-center gap-3">
-            {modelName}
-            <span className="text-xs uppercase px-3 py-1 rounded-full font-mono bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+
+          <h2 className="eval-title">
+            <span>{modelName}</span>
+            <span className="eval-badge eval-badge-indigo">
               Engine: {engine}
             </span>
-            <span className="text-xs uppercase px-3 py-1 rounded-full font-mono bg-purple-500/20 text-purple-300 border border-purple-500/30">
-              {String(problemType).replace('_', ' ')}
+            <span className="eval-badge eval-badge-purple">
+              {String(problemType).replace(/_/g, ' ')}
             </span>
           </h2>
         </div>
 
-        {/* Run selector dropdown */}
-        {runs.length > 1 && (
-          <div className="flex items-center gap-2">
-            <label htmlFor="eval-run-select" className="text-xs text-slate-400 font-medium">Evaluation Run:</label>
+        {/* Run Selector (if multiple training runs exist) */}
+        {runs && runs.length > 1 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+            <label htmlFor="eval-run-select" style={{ fontSize: '0.8rem', color: 'var(--eval-text-muted)', fontWeight: 600 }}>
+              Select Run:
+            </label>
             <select
               id="eval-run-select"
               value={activeRunId}
               onChange={(e) => onSelectRun(e.target.value)}
-              className="bg-slate-950 border border-slate-700 text-slate-200 text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-500"
+              className="select-input"
+              style={{ padding: '0.45rem 0.85rem', fontSize: '0.8rem' }}
+              aria-label="Select evaluation run"
             >
               {runs.map((r) => (
                 <option key={r.run_id} value={r.run_id}>
@@ -94,84 +125,105 @@ export const EvaluationHeader: React.FC<EvaluationHeaderProps> = ({
         )}
       </div>
 
-      {/* Overview Spotlight Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
-        {/* Validation Score */}
-        <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4">
-          <div className="text-xs text-slate-400 uppercase font-semibold tracking-wider">
-            Validation {evaluation.primary_metric}
+      {/* Spotlight Key Metrics Grid */}
+      <div className="eval-grid-4" style={{ marginTop: '1.5rem' }}>
+        {/* 1. Validation Benchmark Score */}
+        <div className="eval-stat-card">
+          <div className="eval-stat-label">
+            <span>Validation {evaluation.primary_metric}</span>
+            <span className="eval-badge eval-badge-indigo" style={{ fontSize: '0.65rem', padding: '0.15rem 0.45rem' }}>
+              Validation Fold
+            </span>
           </div>
-          <div className="text-2xl font-black font-mono text-white mt-1">
+          <div className="eval-stat-val">
             {formatScore(valScore)}
           </div>
-          <div className="text-[11px] text-slate-400 mt-1">
-            Calculated on validation partition
+          <div className="eval-stat-subtext">
+            Selection metric computed during cross-validation
           </div>
         </div>
 
-        {/* Held-out Test Score */}
-        <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4">
-          <div className="text-xs text-slate-400 uppercase font-semibold tracking-wider flex items-center gap-1.5">
-            <span>Held-out Test {evaluation.primary_metric}</span>
-            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">
-              Test Set
+        {/* 2. Held-out Test Score */}
+        <div className="eval-stat-card" style={{ borderColor: 'rgba(16, 185, 129, 0.3)' }}>
+          <div className="eval-stat-label">
+            <span>Held-Out Test {evaluation.primary_metric}</span>
+            <span className="eval-badge eval-badge-emerald" style={{ fontSize: '0.65rem', padding: '0.15rem 0.45rem' }}>
+              Untouched Test Set
             </span>
           </div>
-          <div className="text-2xl font-black font-mono text-emerald-400 mt-1">
+          <div className="eval-stat-val eval-stat-val-green">
             {formatScore(testScore)}
           </div>
-          <div className="text-[11px] text-slate-400 mt-1">
-            Untouched held-out test data
+          <div className="eval-stat-subtext">
+            Final evaluation on unseen held-out records
           </div>
         </div>
 
-        {/* Generalization Gap */}
-        <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4">
-          <div className="text-xs text-slate-400 uppercase font-semibold tracking-wider">
-            Generalization Gap
+        {/* 3. Generalization Gap */}
+        <div className="eval-stat-card">
+          <div className="eval-stat-label">
+            <span>Generalization Gap</span>
+            <span className="eval-badge eval-badge-purple" style={{ fontSize: '0.65rem', padding: '0.15rem 0.45rem' }}>
+              Val vs Test Δ
+            </span>
           </div>
-          <div className="text-2xl font-black font-mono text-indigo-300 mt-1">
+          <div className="eval-stat-val eval-stat-val-indigo">
             {genGap !== undefined && genGap !== null
               ? (genGap > 0 ? `+${formatScore(genGap)}` : formatScore(genGap))
-              : '—'}
+              : '0.0000'}
           </div>
-          <div className="text-[11px] text-slate-400 mt-1">
-            Validation vs Test performance
+          <div className="eval-stat-subtext">
+            Difference between validation & test scores
           </div>
         </div>
 
-        {/* Diagnostics & Timing */}
-        <div className="bg-slate-950/60 border border-slate-800 rounded-xl p-4 flex flex-col justify-between">
+        {/* 4. Diagnostic Assessment & Latency */}
+        <div className="eval-stat-card" style={{ justifyContent: 'space-between' }}>
           <div>
-            <div className="text-xs text-slate-400 uppercase font-semibold tracking-wider mb-1.5">
-              Diagnostic Assessment
+            <div className="eval-stat-label" style={{ marginBottom: '0.5rem' }}>
+              <span>Diagnostic Assessment</span>
             </div>
-            <span className={`px-2.5 py-1 rounded-full text-xs font-bold border inline-block ${getDiagnosticBadge(evaluation.diagnostics?.label)}`}>
-              {evaluation.diagnostics?.label || 'Evaluated'}
+            <span className={diagBadge.className}>
+              {diagBadge.icon}
+              <span>{diagBadge.text}</span>
             </span>
           </div>
-          <div className="flex items-center gap-4 text-xs text-slate-400 font-mono mt-2 pt-2 border-t border-slate-800/80">
-            <span title="Training Duration" className="flex items-center gap-1">
-              <Clock size={12} /> {trainTime !== undefined && trainTime !== null ? Number(trainTime).toFixed(2) : '—'}s train
+
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '0.75rem',
+            paddingTop: '0.6rem',
+            marginTop: '0.5rem',
+            borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+            fontSize: '0.75rem',
+            fontFamily: 'var(--font-mono, monospace)',
+            color: 'var(--eval-text-muted)'
+          }}>
+            <span title="Training Duration" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+              <Clock size={12} className="text-indigo-400" />
+              <span>{trainTime !== undefined && trainTime !== null ? Number(trainTime).toFixed(2) : '—'}s train</span>
             </span>
-            <span title="Inference Latency" className="flex items-center gap-1">
-              ⚡ {predTime !== undefined && predTime !== null ? Number(predTime).toFixed(3) : '—'}s test
+            <span title="Inference Latency" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+              <Zap size={12} className="text-emerald-400" />
+              <span>{predTime !== undefined && predTime !== null ? Number(predTime).toFixed(3) : '—'}s infer</span>
             </span>
           </div>
         </div>
       </div>
 
-      {/* Diagnostics notes banner */}
+      {/* Diagnostics Explanatory Notes */}
       {evaluation.diagnostics?.notes && evaluation.diagnostics.notes.length > 0 && (
-        <div className="mt-4 p-3 bg-indigo-950/20 border border-indigo-500/20 rounded-xl text-xs text-slate-300 flex items-start gap-2.5">
-          <span className="text-indigo-400 text-sm mt-0.5">ℹ️</span>
-          <div className="space-y-1">
+        <div className="eval-notice-box" style={{ marginTop: '1.25rem' }}>
+          <Sparkles size={16} className="text-indigo-400" style={{ marginTop: '0.15rem', flexShrink: 0 }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
             {evaluation.diagnostics.notes.map((note, idx) => (
-              <div key={idx}>{note}</div>
+              <div key={idx} style={{ color: '#e2e8f0', fontSize: '0.8rem' }}>• {note}</div>
             ))}
           </div>
         </div>
       )}
-    </div>
+    </header>
   );
 };
