@@ -1,6 +1,9 @@
 :root {
+  color-scheme: dark;
   --bg-base: #0a0f1d;
   --bg-surface: #111827;
+  --bg-secondary: #0f172a;
+  --bg-surface-elevated: #1e293b;
   --bg-card: rgba(23, 32, 54, 0.7);
   --bg-card-hover: rgba(30, 41, 69, 0.85);
   --border-color: rgba(255, 255, 255, 0.08);
@@ -14,6 +17,13 @@
   --primary-hover: #4f46e5;
   --primary-glow: rgba(99, 102, 241, 0.25);
   
+  --accent-primary: #6366f1;
+  --accent-blue: #38bdf8;
+  --accent-green: #34d399;
+  --accent-amber: #fbbf24;
+  --accent-red: #f87171;
+  --accent-purple: #a855f7;
+
   --success: #10b981;
   --success-bg: rgba(16, 185, 129, 0.12);
   --warning: #f59e0b;
@@ -45,6 +55,7 @@ body {
   min-height: 100vh;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  color-scheme: dark;
 }
 
 /* Scrollbar */
@@ -61,6 +72,27 @@ body {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.25);
+}
+
+/* Modern Sleek Custom Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.6);
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(99, 102, 241, 0.45);
+  border-radius: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.85);
+}
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(99, 102, 241, 0.45) rgba(15, 23, 42, 0.6);
 }
 
 /* Layout */
@@ -135,6 +167,51 @@ body {
 .btn-outline:hover {
   background: rgba(255, 255, 255, 0.05);
   border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* Form Elements & Dark Dropdown Contrast */
+select, .select-input {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: var(--radius-md);
+  padding: 0.65rem 1rem;
+  font-size: 0.9rem;
+  outline: none;
+  font-family: inherit;
+  color-scheme: dark;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+select:focus, .select-input:focus {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 2px var(--primary-glow) !important;
+}
+select option, .select-input option {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.9rem;
+}
+select option:hover, select option:focus, select option:checked {
+  background-color: #1e293b !important;
+  color: #ffffff !important;
+}
+
+input[type="text"], input[type="search"], input[type="number"] {
+  background-color: #0f172a;
+  color: #f8fafc;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-md);
+  padding: 0.65rem 1rem;
+  font-size: 0.9rem;
+  outline: none;
+  font-family: inherit;
+  color-scheme: dark;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+input[type="text"]:focus, input[type="search"]:focus, input[type="number"]:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-glow);
 }
 
 /* Tables */
