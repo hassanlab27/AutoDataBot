@@ -82,7 +82,11 @@ def evaluate_classification(
         "precision": prec,
         "recall": rec,
         "f1": f1,
-        "weighted_f1": weighted_f1
+        "weighted_f1": weighted_f1,
+        "accuracy_pct": round(float(accuracy * 100.0), 1),
+        "f1_pct": round(float(f1 * 100.0), 1),
+        "precision_pct": round(float(prec * 100.0), 1),
+        "recall_pct": round(float(rec * 100.0), 1)
     }
 
     # 2. Confusion Matrix (Counts and Percentages)
@@ -91,12 +95,22 @@ def evaluate_classification(
     with np.errstate(divide='ignore', invalid='ignore'):
         cm_norm = np.where(row_sums > 0, cm / row_sums, 0.0)
 
+    correct_cnt = int(np.sum(np.diag(cm)))
+    incorrect_cnt = int(len(y_t) - correct_cnt)
+    acc_pct = round(float(accuracy * 100.0), 1)
+    err_pct = round(float((1.0 - accuracy) * 100.0), 1)
+
     confusion_dict = {
         "labels": class_labels,
         "matrix": cm.tolist(),
         "normalized_matrix": [[round(float(v), 4) for v in row] for row in cm_norm],
         "matrix_normalized": [[round(float(v), 4) for v in row] for row in cm_norm],
         "total_samples": int(len(y_t)),
+        "correct_count": correct_cnt,
+        "incorrect_count": incorrect_cnt,
+        "accuracy_pct": acc_pct,
+        "error_pct": err_pct,
+        "summary_text": f"Correctly classified {correct_cnt} of {len(y_t)} test samples ({acc_pct}%), with {incorrect_cnt} mistakes ({err_pct}%).",
         "is_binary": is_binary
     }
 
@@ -112,6 +126,7 @@ def evaluate_classification(
             "sensitivity": rec
         }
         metrics_summary["specificity"] = specificity
+        metrics_summary["specificity_pct"] = round(float(specificity * 100.0), 1)
 
     # 3. Per-Class Breakdown
     report_dict = classification_report(y_t, y_p, labels=unique_classes, output_dict=True, zero_division=0)
@@ -226,7 +241,12 @@ def evaluate_classification(
     return {
         "problem_type": "binary_classification" if is_binary else "multiclass_classification",
         "metrics": metrics_summary,
+        "accuracy_pct": f"{metrics_summary.get('accuracy_pct', 0.0):.1f}%",
+        "f1_pct": f"{metrics_summary.get('f1_pct', 0.0):.1f}%",
+        "precision_pct": f"{metrics_summary.get('precision_pct', 0.0):.1f}%",
+        "recall_pct": f"{metrics_summary.get('recall_pct', 0.0):.1f}%",
         "confusion_matrix": confusion_dict,
+        "confusion_dict": confusion_dict,
         "per_class": per_class,
         "per_class_metrics": per_class_map,
         "roc_curve": roc_data,

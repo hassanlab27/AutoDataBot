@@ -35,6 +35,13 @@ class EvaluationData:
     y_val: np.ndarray
     feature_names: List[str]
     feature_map: Dict[str, str]  # transformed_feature -> original_feature
+    X_train_prep: Optional[np.ndarray] = None
+    X_train_raw: Optional[pd.DataFrame] = None
+    y_train: Optional[np.ndarray] = None
+    X_tr_prep: Optional[np.ndarray] = None
+    X_tr_raw: Optional[pd.DataFrame] = None
+    y_tr: Optional[np.ndarray] = None
+    X_val_raw: Optional[pd.DataFrame] = None
 
 class EvaluationDataLoader:
     def __init__(self):
@@ -48,6 +55,20 @@ class EvaluationDataLoader:
         run_dir = self.get_run_dir(run_id)
         if not run_dir.exists():
             raise AutoDataBotError(f"Run directory for '{run_id}' not found")
+
+        # Check if run has a recorded terminal failure or cancellation
+        status_path = run_dir / "status.json"
+        if status_path.exists():
+            try:
+                with open(status_path, "r", encoding="utf-8") as f:
+                    st_data = json.load(f)
+                    if st_data.get("status") in ["failed", "cancelled"]:
+                        err_msg = st_data.get("error_message") or f"Run '{run_id}' has status '{st_data.get('status')}'"
+                        raise AutoDataBotError(f"Cannot evaluate run '{run_id}': {err_msg}")
+            except AutoDataBotError:
+                raise
+            except Exception:
+                pass
 
         config_path = run_dir / "config.json"
         if not config_path.exists():
@@ -155,23 +176,28 @@ class EvaluationDataLoader:
         y_train = np.asarray(y_train)
         y_test = np.asarray(y_test)
 
-        # Internal validation split matching Phase 4 training
+        # Internal validation split matching Phase 4/5 training (index synchronized)
         stratify = y_train if problem_type.endswith("classification") else None
         try:
-            X_tr_prep, X_val_prep, y_tr, y_val = train_test_split(
-                X_train_prep,
-                y_train,
+            tr_idx, val_idx = train_test_split(
+                np.arange(len(y_train)),
                 test_size=0.20,
                 random_state=random_state,
                 stratify=stratify
             )
         except Exception:
-            X_tr_prep, X_val_prep, y_tr, y_val = train_test_split(
-                X_train_prep,
-                y_train,
+            tr_idx, val_idx = train_test_split(
+                np.arange(len(y_train)),
                 test_size=0.20,
                 random_state=random_state
             )
+
+        X_tr_prep = X_train_prep[tr_idx]
+        X_val_prep = X_train_prep[val_idx]
+        y_tr = y_train[tr_idx]
+        y_val = y_train[val_idx]
+        X_tr_raw = X_train_raw.iloc[tr_idx].copy().reset_index(drop=True)
+        X_val_raw = X_train_raw.iloc[val_idx].copy().reset_index(drop=True)
 
         # 4. Extract feature names and build transformed -> raw feature mapping
         feature_names: List[str] = []
@@ -219,7 +245,14 @@ class EvaluationDataLoader:
             X_val_prep=X_val_prep,
             y_val=y_val,
             feature_names=feature_names,
-            feature_map=feature_map
+            feature_map=feature_map,
+            X_train_prep=X_train_prep,
+            X_train_raw=X_train_raw,
+            y_train=y_train,
+            X_tr_prep=X_tr_prep,
+            X_tr_raw=X_tr_raw,
+            y_tr=y_tr,
+            X_val_raw=X_val_raw
         )
 
 data_loader = EvaluationDataLoader()

@@ -33,7 +33,7 @@ def train_sklearn_baselines(
     if is_classification:
         candidates = [
             ("NaiveBaseline (Majority Class)", DummyClassifier(strategy="most_frequent")),
-            ("LogisticRegression", LogisticRegression(max_iter=1000, random_state=random_state, n_jobs=max_cpus)),
+            ("LogisticRegression", LogisticRegression(max_iter=1000, random_state=random_state)),
             ("RandomForestClassifier", RandomForestClassifier(n_estimators=100, random_state=random_state, n_jobs=max_cpus)),
             ("HistGradientBoostingClassifier", HistGradientBoostingClassifier(random_state=random_state))
         ]

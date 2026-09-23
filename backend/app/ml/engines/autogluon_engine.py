@@ -25,7 +25,10 @@ def train_autogluon_engine(
     """
     results: List[Dict[str, Any]] = []
     ag_path = run_models_dir / "autogluon"
-    ag_path.mkdir(parents=True, exist_ok=True)
+    if ag_path.exists():
+        import shutil
+        shutil.rmtree(ag_path, ignore_errors=True)
+    run_models_dir.mkdir(parents=True, exist_ok=True)
 
     try:
         from autogluon.tabular import TabularPredictor
@@ -46,10 +49,12 @@ def train_autogluon_engine(
 
     # Map problem_type to AutoGluon expected format
     ag_problem_type = None
-    if problem_type == "binary_classification":
-        ag_problem_type = "binary"
-    elif problem_type == "multiclass_classification":
-        ag_problem_type = "multiclass"
+    if "classification" in problem_type.lower():
+        n_unique = train_data_raw[target_col].nunique()
+        if n_unique > 2 or problem_type == "multiclass_classification":
+            ag_problem_type = "multiclass"
+        else:
+            ag_problem_type = "binary"
     elif problem_type == "regression":
         ag_problem_type = "regression"
 
@@ -75,7 +80,8 @@ def train_autogluon_engine(
         fit_kwargs = {
             "train_data": train_data_raw,
             "time_limit": time_limit,
-            "presets": presets
+            "presets": presets,
+            "excluded_model_types": ["NN_TORCH", "FASTAI"]
         }
         if val_data_raw is not None:
             fit_kwargs["tuning_data"] = val_data_raw
@@ -110,7 +116,14 @@ def train_autogluon_engine(
                             y_val_prob = prob_df.to_numpy()
                         except Exception:
                             pass
-                    val_metrics = compute_metrics(problem_type, y_val_true, y_val_pred, y_val_prob)
+                    val_metrics = compute_metrics(
+                        problem_type,
+                        y_val_true,
+                        y_val_pred,
+                        y_val_prob,
+                        partition="validation",
+                        model_name=f"AutoGluon_{m_name}"
+                    )
                 except Exception as eval_err:
                     logger.debug(f"Could not calculate detailed metrics for AutoGluon model {m_name}: {eval_err}")
 
@@ -126,7 +139,7 @@ def train_autogluon_engine(
                 "submodel_name": m_name,
                 "problem_type": problem_type,
                 "training_time_seconds": round(fit_time, 3),
-                "validation_method": "AutoGluon internal validation/bagging",
+                "validation_method": "AutoGluon validation",
                 "validation_metrics": val_metrics,
                 "train_metrics": {},
                 "status": "completed",

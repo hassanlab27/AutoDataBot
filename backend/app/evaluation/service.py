@@ -63,8 +63,55 @@ class EvaluationService:
         pred_time = time.time() - t0
 
         y_test = data.y_test
+        if len(y_test) != len(test_preds):
+            raise AutoDataBotError(
+                f"Test partition mismatch for run '{run_id}', model '{data.model_name}': "
+                f"expected {len(y_test)} samples, got {len(test_preds)} predictions"
+            )
 
-        # 2. Performance & Error Analysis
+        # 2. Performance on Training Data (for Authenticity & Overfitting Verification)
+        train_score: Optional[float] = None
+        train_metrics: Dict[str, Any] = {}
+        eval_train_y = data.y_tr if data.y_tr is not None else data.y_train
+        eval_train_raw = data.X_tr_raw if data.X_tr_raw is not None else data.X_train_raw
+        eval_train_prep = data.X_tr_prep if data.X_tr_prep is not None else data.X_train_prep
+
+        if eval_train_y is not None and (eval_train_prep is not None or eval_train_raw is not None):
+            try:
+                y_tr_prob = None
+                if data.engine.lower() == "autogluon" and eval_train_raw is not None:
+                    tr_preds = model.predict(eval_train_raw)
+                    try:
+                        y_tr_prob = model.predict_proba(eval_train_raw).to_numpy()
+                    except Exception:
+                        pass
+                elif eval_train_prep is not None:
+                    tr_preds = model.predict(eval_train_prep)
+                    if hasattr(model, "predict_proba"):
+                        try:
+                            y_tr_prob = model.predict_proba(eval_train_prep)
+                        except Exception:
+                            pass
+                else:
+                    tr_preds = None
+
+                if tr_preds is not None:
+                    if len(eval_train_y) != len(tr_preds):
+                        raise AutoDataBotError(
+                            f"Train partition mismatch for run '{run_id}', model '{data.model_name}': "
+                            f"expected {len(eval_train_y)} samples, got {len(tr_preds)} predictions"
+                        )
+                    if is_regression:
+                        tr_perf = evaluate_regression(eval_train_y, tr_preds)
+                        train_metrics = tr_perf.get("metrics", {})
+                    else:
+                        tr_perf = evaluate_classification(eval_train_y, tr_preds, y_prob=y_tr_prob, problem_type=data.problem_type)
+                        train_metrics = tr_perf.get("metrics", {})
+                    train_score = train_metrics.get(data.primary_metric)
+            except Exception as e:
+                logger.warning(f"Could not compute train metrics in evaluation service: {e}")
+
+        # 3. Performance & Error Analysis on Test Data
         if is_regression:
             perf = evaluate_regression(y_test, test_preds)
             errors = analyze_regression_errors(y_test, test_preds, limit=20)
@@ -72,14 +119,15 @@ class EvaluationService:
             perf = evaluate_classification(y_test, test_preds, y_prob=y_prob, problem_type=data.problem_type)
             errors = analyze_classification_errors(y_test, test_preds, y_prob=y_prob, limit=20)
 
-        # 3. Generalization Diagnostics
+        # 4. Generalization Diagnostics
         metrics_dict = perf.get("metrics", {})
         test_score = metrics_dict.get(data.primary_metric)
         val_score = data.config.get("validation_score", 0.0)
 
-        # Try to pull validation score from leaderboard/metrics
+        # Try to pull validation score & tuning history from leaderboard/metrics
         metrics_json_path = settings.OUTPUTS_DIR / "runs" / data.run_id / "metrics.json"
         naive_score = None
+        tuning_history = {}
         if metrics_json_path.exists():
             try:
                 with open(metrics_json_path, "r", encoding="utf-8") as f:
@@ -88,6 +136,11 @@ class EvaluationService:
                     val_metrics = m_data.get("winner_validation_metrics", {})
                     if data.primary_metric in val_metrics:
                         val_score = val_metrics[data.primary_metric]
+                    if train_score is None and m_data.get("winner_train_score") is not None:
+                        train_score = m_data.get("winner_train_score")
+                    if not train_metrics and m_data.get("winner_train_metrics"):
+                        train_metrics = m_data.get("winner_train_metrics", {})
+                    tuning_history = m_data.get("tuning_history", {})
             except Exception:
                 pass
 
@@ -98,7 +151,7 @@ class EvaluationService:
             naive_baseline_score=naive_score
         )
 
-        # 4. Multi-model Comparison
+        # 5. Multi-model Comparison
         comp = compare_run_models(run_id)
         training_time = 0.0
         lb_models = comp.get("models", [])
@@ -116,7 +169,10 @@ class EvaluationService:
             "model_name": data.model_name,
             "engine": data.engine,
             "validation_score": val_score,
+            "train_score": train_score,
             "test_score": test_score,
+            "train_metrics": train_metrics,
+            "tuning_history": tuning_history,
             "generalization_gap": diag.get("generalization_gap"),
             "training_time_seconds": round(float(training_time), 3),
             "prediction_time_seconds": round(float(pred_time), 4),
@@ -124,7 +180,10 @@ class EvaluationService:
                 "model_name": data.model_name,
                 "engine": data.engine,
                 "validation_score": val_score,
+                "train_score": train_score,
                 "test_score": test_score,
+                "train_metrics": train_metrics,
+                "tuning_history": tuning_history,
                 "generalization_gap": diag.get("generalization_gap"),
                 "diagnostic_label": diag.get("diagnostic_label"),
                 "training_time_seconds": round(float(training_time), 3),
@@ -178,6 +237,18 @@ class EvaluationService:
             payload["engine"] = winning["engine"]
         if payload.get("validation_score") is None and winning.get("validation_score") is not None:
             payload["validation_score"] = winning["validation_score"]
+        if payload.get("train_score") is None and winning.get("train_score") is not None:
+            payload["train_score"] = winning["train_score"]
+        if "train_score" not in winning and payload.get("train_score") is not None:
+            winning["train_score"] = payload.get("train_score")
+        if not payload.get("train_metrics") and winning.get("train_metrics"):
+            payload["train_metrics"] = winning["train_metrics"]
+        if "train_metrics" not in winning and payload.get("train_metrics"):
+            winning["train_metrics"] = payload.get("train_metrics")
+        if not payload.get("tuning_history") and winning.get("tuning_history"):
+            payload["tuning_history"] = winning["tuning_history"]
+        if "tuning_history" not in winning and payload.get("tuning_history"):
+            winning["tuning_history"] = payload.get("tuning_history")
         if payload.get("test_score") is None and winning.get("test_score") is not None:
             payload["test_score"] = winning["test_score"]
         if payload.get("generalization_gap") is None and winning.get("generalization_gap") is not None:

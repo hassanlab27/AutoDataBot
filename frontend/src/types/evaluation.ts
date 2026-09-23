@@ -26,9 +26,37 @@ export interface CalibrationData {
   brier_score?: number | null;
 }
 
+export interface TuningRoundScore {
+  round: number;
+  stage: string;
+  best_score: number;
+  target_achieved: boolean;
+}
+
+export interface TuningHistory {
+  target_threshold: number;
+  target_metric: string;
+  target_achieved: boolean;
+  rounds_run: number;
+  round_scores: TuningRoundScore[];
+  total_models: number;
+  summary_text: string;
+}
+
 export interface ClassificationPerformance {
   problem_type: 'binary_classification' | 'multiclass_classification';
   metrics: Record<string, number | null>;
+  accuracy_pct?: string | null;
+  f1_pct?: string | null;
+  precision_pct?: string | null;
+  recall_pct?: string | null;
+  confusion_dict?: {
+    correct_count?: number;
+    incorrect_count?: number;
+    accuracy_pct?: string;
+    error_pct?: string;
+    summary_text?: string;
+  } | null;
   confusion_matrix: ConfusionMatrixData;
   per_class_metrics: Record<string, { precision: number; recall: number; f1: number; support: number }>;
   roc_curve?: CurveData | null;
@@ -47,6 +75,16 @@ export interface RegressionPerformance {
     explained_variance?: number | null;
     mape?: number | null;
   };
+  accuracy_within_10_pct?: number | null;
+  accuracy_within_20_pct?: number | null;
+  r2_pct?: string | null;
+  human_summary?: {
+    r2_explained?: string;
+    average_error_mae?: string;
+    error_rate_pct?: string;
+    accuracy_within_10_pct?: string;
+    accuracy_within_20_pct?: string;
+  } | null;
   actual_vs_predicted: {
     actual: number[];
     predicted: number[];
@@ -112,8 +150,11 @@ export interface ComparisonModelItem {
   is_winner: boolean;
   is_naive_baseline: boolean;
   validation_score: number | null;
+  train_score?: number | null;
   test_score: number | null;
   generalization_gap: number | null;
+  tuning_round?: number;
+  tuning_stage?: string;
   training_time_seconds: number;
   inference_time_seconds: number | null;
   primary_metric: string;
@@ -126,10 +167,26 @@ export interface ComparisonSummary {
   metric_direction: 'higher' | 'lower';
   models: ComparisonModelItem[];
   chart_data: {
-    model_names: string[];
+    model_names?: string[];
+    models?: string[];
     validation_scores: (number | null)[];
+    train_scores?: (number | null)[];
     test_scores: (number | null)[];
   };
+}
+
+export interface WinningModelSummary {
+  model_name: string;
+  engine: string;
+  validation_score: number | null;
+  train_score?: number | null;
+  test_score: number | null;
+  train_metrics?: Record<string, any>;
+  tuning_history?: TuningHistory;
+  generalization_gap: number | null;
+  diagnostic_label?: string;
+  training_time_seconds: number;
+  prediction_time_seconds: number;
 }
 
 export interface EvaluationOverview {
@@ -139,7 +196,11 @@ export interface EvaluationOverview {
   problem_type: string;
   primary_metric: string;
   validation_score: number | null;
+  train_score?: number | null;
   test_score: number | null;
+  train_metrics?: Record<string, number | null>;
+  tuning_history?: TuningHistory;
+  winning_model?: WinningModelSummary;
   generalization_gap: number | null;
   training_time_seconds: number;
   prediction_time_seconds: number;

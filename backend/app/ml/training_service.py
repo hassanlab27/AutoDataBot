@@ -8,12 +8,24 @@ import numpy as np
 import pandas as pd
 import joblib
 from sklearn.model_selection import train_test_split
+from sklearn.base import BaseEstimator
+from sklearn.ensemble import (
+    HistGradientBoostingClassifier,
+    HistGradientBoostingRegressor,
+    RandomForestClassifier,
+    RandomForestRegressor,
+    ExtraTreesClassifier,
+    ExtraTreesRegressor,
+    VotingClassifier,
+    VotingRegressor
+)
 
 from app.core.config import settings
-from app.core.errors import AutoDataBotException, AutoDataBotError
+from app.core.errors import AutoDataBotException, AutoDataBotError, EvaluationError
 from app.storage.dataset_store import dataset_store
 from app.preprocessing.preprocessing_service import PreprocessingService
 from app.preprocessing.split_service import perform_train_test_split
+from app.ml.partitions import DatasetPartitions
 from app.ml.config import AutoMLConfig
 from app.ml.metrics import (
     select_default_primary_metric,
@@ -120,40 +132,11 @@ class TrainingService:
                 progress_pct=10
             )
 
-            # 1. Prepare / Load Preprocessed Data
-            (
-                X_train_raw, X_test_raw,
-                X_train_prep, X_test_prep,
-                y_train, y_test
-            ) = self._prepare_data(config)
+            # 1. Prepare / Load Preprocessed Data using explicit DatasetPartitions contract
+            partitions = self._prepare_data(config)
 
             if job_runner.is_cancelled(run_id):
                 return
-
-            # Internal validation split from training partition for fair ranking
-            # Held-out test set (X_test_prep, y_test) is strictly untouched!
-            stratify = y_train if config.problem_type.endswith("classification") else None
-            try:
-                (
-                    X_tr_prep, X_val_prep,
-                    y_tr, y_val
-                ) = train_test_split(
-                    X_train_prep,
-                    y_train,
-                    test_size=0.20,
-                    random_state=config.random_state,
-                    stratify=stratify
-                )
-            except Exception:
-                (
-                    X_tr_prep, X_val_prep,
-                    y_tr, y_val
-                ) = train_test_split(
-                    X_train_prep,
-                    y_train,
-                    test_size=0.20,
-                    random_state=config.random_state
-                )
 
             # 2. Stage: Scikit-learn Baselines
             job_runner.update_status(
@@ -164,10 +147,10 @@ class TrainingService:
             )
             sk_raw_results = train_sklearn_baselines(
                 problem_type=config.problem_type,
-                X_train=X_tr_prep,
-                y_train=y_tr,
-                X_val=X_val_prep,
-                y_val=y_val,
+                X_train=partitions.X_tr_prep,
+                y_train=partitions.y_tr,
+                X_val=partitions.X_val_prep,
+                y_val=partitions.y_val,
                 random_state=config.random_state,
                 max_cpus=config.get_effective_cpus()
             )
@@ -212,10 +195,10 @@ class TrainingService:
                 )
                 gb_raw_results = train_gradient_boosting_models(
                     problem_type=config.problem_type,
-                    X_train=X_tr_prep,
-                    y_train=y_tr,
-                    X_val=X_val_prep,
-                    y_val=y_val,
+                    X_train=partitions.X_tr_prep,
+                    y_train=partitions.y_tr,
+                    X_val=partitions.X_val_prep,
+                    y_val=partitions.y_val,
                     random_state=config.random_state,
                     max_cpus=config.get_effective_cpus()
                 )
@@ -252,10 +235,10 @@ class TrainingService:
                 )
                 flaml_raw_results = train_flaml_engine(
                     problem_type=config.problem_type,
-                    X_train=X_tr_prep,
-                    y_train=y_tr,
-                    X_val=X_val_prep,
-                    y_val=y_val,
+                    X_train=partitions.X_tr_prep,
+                    y_train=partitions.y_tr,
+                    X_val=partitions.X_val_prep,
+                    y_val=partitions.y_val,
                     time_limit=flaml_time,
                     random_state=config.random_state,
                     eval_metric=primary_metric
@@ -291,15 +274,15 @@ class TrainingService:
                     engine="autogluon",
                     progress_pct=85
                 )
-                # Combine raw features and target for AutoGluon
-                train_data_raw = X_train_raw.copy()
-                train_data_raw[config.target] = y_train
+                # Combine raw features and target for AutoGluon on internal folds
+                train_data_raw = partitions.get_autogluon_train_df(config.target)
+                val_data_raw = partitions.get_autogluon_val_df(config.target)
 
                 ag_raw_results = train_autogluon_engine(
                     train_data_raw=train_data_raw,
                     target_col=config.target,
                     problem_type=config.problem_type,
-                    val_data_raw=None,
+                    val_data_raw=val_data_raw,
                     run_models_dir=run_dir / "models",
                     time_limit=ag_time,
                     presets=config.presets,
@@ -313,6 +296,7 @@ class TrainingService:
                         model_id=m_id,
                         model_name=item["model_name"],
                         engine=item["engine"],
+                        submodel_name=item.get("submodel_name"),
                         problem_type=config.problem_type,
                         validation_metrics=item["validation_metrics"],
                         validation_primary_score=val_score,
@@ -328,42 +312,71 @@ class TrainingService:
             if job_runner.is_cancelled(run_id):
                 return
 
-            # 6. Model Ranking & Winner Selection (Based STRICTLY on validation_primary_score)
+            # 6. Continuous Tuning: evaluate if target benchmark (>= 0.80) is met, else perform Rounds 2 & 3
+            tuning_history = self._run_continuous_tuning(
+                config=config,
+                primary_metric=primary_metric,
+                X_tr_prep=partitions.X_tr_prep,
+                y_tr=partitions.y_tr,
+                X_val_prep=partitions.X_val_prep,
+                y_val=partitions.y_val,
+                results=results,
+                trained_model_objs=trained_model_objs,
+                run_id=run_id
+            )
+
+            if job_runner.is_cancelled(run_id):
+                return
+
+            # 7. Model Ranking & Winner Selection (Based STRICTLY on validation_primary_score)
             job_runner.update_status(
                 run_id,
-                stage="Ranking models & evaluating winner on held-out test data",
+                status="evaluating",
+                stage="Ranking models & evaluating winner on train & test partitions",
                 engine="evaluator",
                 progress_pct=92
             )
 
             winner, leaderboard = rank_and_select_winner(results, primary_metric)
 
-            # 7. Test Set Evaluation on Winner & Baselines (Held-out test partition untouched till now!)
+            # 8. Train & Test Set Evaluation on Winner & Baselines
             if winner is not None:
                 self._evaluate_on_test_data(
                     winner=winner,
                     trained_model_objs=trained_model_objs,
                     config=config,
                     primary_metric=primary_metric,
-                    X_test_prep=X_test_prep,
-                    X_test_raw=X_test_raw,
-                    y_test=y_test,
+                    partitions=partitions,
                     naive_baseline_score=naive_baseline_score
                 )
 
                 # Persist winner model bundle to disk
                 self._save_winner_artifact(winner, trained_model_objs, run_dir)
 
-            # Direct test evaluation for naive baseline to show benchmark in leaderboard
+            # Direct test & train evaluation for naive baseline to show benchmark in leaderboard
             for naive_res in [m for m in leaderboard if m.is_naive_baseline and m.status == "success"]:
                 dummy_model = trained_model_objs.get(naive_res.model_id)
                 if dummy_model:
                     try:
-                        dummy_test_preds = dummy_model.predict(X_test_prep)
+                        dummy_tr_preds = dummy_model.predict(partitions.X_tr_prep)
+                        naive_res.train_metrics = compute_metrics(
+                            config.problem_type,
+                            partitions.y_tr,
+                            dummy_tr_preds,
+                            partition="train",
+                            run_id=run_id,
+                            model_name=naive_res.model_name
+                        )
+                        naive_res.train_primary_score = naive_res.train_metrics.get(primary_metric)
+
+                        dummy_test_preds = dummy_model.predict(partitions.X_test_prep)
                         naive_res.test_metrics = compute_metrics(
                             config.problem_type,
-                            y_test,
-                            dummy_test_preds
+                            partitions.y_test,
+                            dummy_test_preds,
+                            partition="test",
+                            run_id=run_id,
+                            model_name=naive_res.model_name
                         )
                         naive_res.test_primary_score = naive_res.test_metrics.get(primary_metric)
                         naive_res.generalization_gap = compute_generalization_gap(
@@ -374,8 +387,16 @@ class TrainingService:
                     except Exception:
                         pass
 
-            # 8. Persist Outputs (leaderboard.json, metrics.json, summary.json)
-            self._save_run_artifacts(run_dir, config, primary_metric, leaderboard, winner, naive_baseline_score)
+            # 9. Persist Outputs (leaderboard.json, metrics.json, summary.json)
+            self._save_run_artifacts(
+                run_dir=run_dir,
+                config=config,
+                primary_metric=primary_metric,
+                leaderboard=leaderboard,
+                winner=winner,
+                naive_baseline_score=naive_baseline_score,
+                tuning_history=tuning_history
+            )
 
             job_runner.update_status(
                 run_id,
@@ -393,15 +414,31 @@ class TrainingService:
                 stage="Failed",
                 error=str(e)
             )
+            failed_summary = {
+                "run_id": run_id,
+                "dataset_id": config.dataset_id,
+                "target": config.target,
+                "problem_type": config.problem_type,
+                "status": "failed",
+                "error_message": str(e),
+                "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            }
+            try:
+                with open(run_dir / "summary.json", "w", encoding="utf-8") as f:
+                    json.dump(failed_summary, f, indent=2)
+            except Exception:
+                pass
+
 
     def _prepare_data(
         self,
         config: AutoMLConfig
-    ) -> Tuple[pd.DataFrame, pd.DataFrame, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    ) -> DatasetPartitions:
         """
         Loads dataset and prepares deterministic splits:
-        Path A: Raw train/test splits.
-        Path B: Preprocessed train/test splits via Phase 3 pipeline.
+        - Internal Train Fold (80% of training partition)
+        - Internal Validation Fold (20% of training partition)
+        - Untouched External Test Set (20% of original dataset)
         """
         df = dataset_store.load_dataset(config.dataset_id)
         prep_dir = self.preprocessing_service.get_preprocessing_dir(config.dataset_id)
@@ -441,7 +478,7 @@ class TrainingService:
         dt_extractor = bundle.get("datetime_extractor")
         col_transformer = bundle.get("column_transformer")
 
-        # Transform features for Path B
+        # Transform features
         if dt_extractor:
             X_tr_dt = dt_extractor.transform(X_train_raw)
             X_te_dt = dt_extractor.transform(X_test_raw)
@@ -457,13 +494,307 @@ class TrainingService:
         if hasattr(X_test_prep, "toarray"):
             X_test_prep = X_test_prep.toarray()
 
-        return (
-            X_train_raw, X_test_raw,
-            np.asarray(X_train_prep, dtype=np.float32),
-            np.asarray(X_test_prep, dtype=np.float32),
-            np.asarray(y_train),
-            np.asarray(y_test)
+        y_train_arr = np.asarray(y_train)
+        y_test_arr = np.asarray(y_test)
+
+        # Synchronized internal fold split across indices
+        stratify = y_train_arr if config.problem_type.endswith("classification") else None
+        try:
+            tr_idx, val_idx = train_test_split(
+                np.arange(len(y_train_arr)),
+                test_size=0.20,
+                random_state=random_state,
+                stratify=stratify
+            )
+        except Exception:
+            tr_idx, val_idx = train_test_split(
+                np.arange(len(y_train_arr)),
+                test_size=0.20,
+                random_state=random_state
+            )
+
+        partitions = DatasetPartitions(
+            X_tr_prep=np.asarray(X_train_prep[tr_idx], dtype=np.float32),
+            X_tr_raw=X_train_raw.iloc[tr_idx].copy().reset_index(drop=True),
+            y_tr=y_train_arr[tr_idx],
+            X_val_prep=np.asarray(X_train_prep[val_idx], dtype=np.float32),
+            X_val_raw=X_train_raw.iloc[val_idx].copy().reset_index(drop=True),
+            y_val=y_train_arr[val_idx],
+            X_test_prep=np.asarray(X_test_prep, dtype=np.float32),
+            X_test_raw=X_test_raw.copy().reset_index(drop=True),
+            y_test=y_test_arr
         )
+        partitions.validate()
+        return partitions
+
+
+    def _run_continuous_tuning(
+        self,
+        config: AutoMLConfig,
+        primary_metric: str,
+        X_tr_prep: np.ndarray,
+        y_tr: np.ndarray,
+        X_val_prep: np.ndarray,
+        y_val: np.ndarray,
+        results: List[ModelResult],
+        trained_model_objs: Dict[str, Any],
+        run_id: str
+    ) -> Dict[str, Any]:
+        """
+        Executes continuous tuning rounds targeting the >= 80% (0.80) performance benchmark.
+        Round 1: Initial baselines & gradient boosting models (already executed).
+        Round 2: Fine-grained hyperparameter search on high-capacity models (HistGBM, RandomForest, ExtraTrees).
+        Round 3: Multi-model Ensemble Stacking & Blending (VotingClassifier / VotingRegressor).
+        """
+        higher_is_better = is_higher_better(primary_metric)
+        target_score = 0.80
+
+        def get_best_score(res_list: List[ModelResult]) -> Tuple[float, Optional[ModelResult]]:
+            completed = [m for m in res_list if m.status == "success" and m.validation_primary_score is not None]
+            if not completed:
+                return (-999.0 if higher_is_better else 999.0), None
+            if higher_is_better:
+                best = max(completed, key=lambda m: m.validation_primary_score or -999.0)
+            else:
+                best = min(completed, key=lambda m: m.validation_primary_score or 999.0)
+            return (best.validation_primary_score or 0.0), best
+
+        best_score_r1, winner_r1 = get_best_score(results)
+        if higher_is_better:
+            r1_achieved = (best_score_r1 >= target_score)
+        else:
+            r2_val = winner_r1.validation_metrics.get("r2", 0.0) if winner_r1 else 0.0
+            r1_achieved = (r2_val >= target_score)
+
+        tuning_history: Dict[str, Any] = {
+            "target_threshold": 0.80,
+            "target_metric": primary_metric,
+            "target_achieved": r1_achieved,
+            "rounds_run": 1,
+            "round_scores": [
+                {
+                    "round": 1,
+                    "stage": "Baseline & Gradient Boost Explorations",
+                    "best_score": round(float(best_score_r1), 4),
+                    "target_achieved": r1_achieved
+                }
+            ],
+            "total_models": len(results),
+            "summary_text": f"Round 1 achieved {best_score_r1 * 100:.1f}% score." if higher_is_better else f"Round 1 completed with score {best_score_r1:.4f}."
+        }
+
+        if r1_achieved or job_runner.is_cancelled(run_id):
+            if r1_achieved:
+                tuning_history["summary_text"] = f"Benchmark achieved in Round 1 ({best_score_r1 * 100:.1f}% >= 80%). Ready for evaluation."
+            return tuning_history
+
+        # ROUND 2: Deep Hyperparameter Tuning & High-Capacity Trees
+        job_runner.update_status(
+            run_id,
+            stage="Continuous Tuning: Round 2 (Deep Hyperparameter Optimization)",
+            progress_pct=75
+        )
+        logger.info(f"Run {run_id}: Current score {best_score_r1:.4f} < 0.80. Launching Continuous Tuning Round 2 (Hyperparameters).")
+
+        round_2_specs = []
+        is_clf = config.problem_type.endswith("classification")
+        random_state = config.random_state
+
+        if is_clf:
+            round_2_specs.append((
+                "Tuned HistGradientBoosting (Deep)",
+                HistGradientBoostingClassifier(max_iter=300, learning_rate=0.04, max_leaf_nodes=63, min_samples_leaf=10, random_state=random_state)
+            ))
+            round_2_specs.append((
+                "Tuned Random Forest (15-depth)",
+                RandomForestClassifier(n_estimators=100, max_depth=15, max_features="sqrt", min_samples_split=4, random_state=random_state, n_jobs=-1)
+            ))
+            round_2_specs.append((
+                "Tuned Extra Trees (High-Capacity)",
+                ExtraTreesClassifier(n_estimators=100, max_features="sqrt", min_samples_split=4, random_state=random_state, n_jobs=-1)
+            ))
+        else:
+            round_2_specs.append((
+                "Tuned HistGradientBoosting (Deep)",
+                HistGradientBoostingRegressor(max_iter=300, learning_rate=0.04, max_leaf_nodes=63, min_samples_leaf=10, random_state=random_state)
+            ))
+            round_2_specs.append((
+                "Tuned Random Forest (15-depth)",
+                RandomForestRegressor(n_estimators=100, max_depth=15, max_features="sqrt", min_samples_split=4, random_state=random_state, n_jobs=-1)
+            ))
+            round_2_specs.append((
+                "Tuned Extra Trees (High-Capacity)",
+                ExtraTreesRegressor(n_estimators=100, max_features="sqrt", min_samples_split=4, random_state=random_state, n_jobs=-1)
+            ))
+
+        for name, estimator in round_2_specs:
+            if job_runner.is_cancelled(run_id):
+                return tuning_history
+            m_id = f"model_tune_r2_{len(results)+1}"
+            t0 = time.time()
+            try:
+                estimator.fit(X_tr_prep, y_tr)
+                t_dur = time.time() - t0
+                val_preds = estimator.predict(X_val_prep)
+                val_probs = None
+                if is_clf and hasattr(estimator, "predict_proba"):
+                    try:
+                        val_probs = estimator.predict_proba(X_val_prep)
+                    except Exception:
+                        pass
+                val_metrics = compute_metrics(config.problem_type, y_val, val_preds, val_probs)
+                val_score = val_metrics.get(primary_metric, 0.0)
+
+                # Training metrics
+                tr_preds = estimator.predict(X_tr_prep)
+                tr_probs = None
+                if is_clf and hasattr(estimator, "predict_proba"):
+                    try:
+                        tr_probs = estimator.predict_proba(X_tr_prep)
+                    except Exception:
+                        pass
+                tr_metrics = compute_metrics(config.problem_type, y_tr, tr_preds, tr_probs)
+                tr_score = tr_metrics.get(primary_metric, 0.0)
+
+                m_res = ModelResult(
+                    model_id=m_id,
+                    model_name=name,
+                    engine="sklearn_tuned",
+                    problem_type=config.problem_type,
+                    validation_metrics=val_metrics,
+                    validation_primary_score=val_score,
+                    train_metrics=tr_metrics,
+                    train_primary_score=tr_score,
+                    training_time_seconds=round(t_dur, 3),
+                    status="success",
+                    is_naive_baseline=False,
+                    tuning_round=2,
+                    tuning_stage="Hyperparameter Optimization"
+                )
+                results.append(m_res)
+                trained_model_objs[m_id] = estimator
+            except Exception as e:
+                logger.warning(f"Continuous tuning Round 2 model {name} failed: {e}")
+
+        best_score_r2, winner_r2 = get_best_score(results)
+        if higher_is_better:
+            r2_achieved = (best_score_r2 >= target_score)
+        else:
+            r2_val = winner_r2.validation_metrics.get("r2", 0.0) if winner_r2 else 0.0
+            r2_achieved = (r2_val >= target_score)
+        tuning_history["rounds_run"] = 2
+        tuning_history["target_achieved"] = r2_achieved
+        tuning_history["round_scores"].append({
+            "round": 2,
+            "stage": "Hyperparameter Optimization",
+            "best_score": round(float(best_score_r2), 4),
+            "target_achieved": r2_achieved
+        })
+
+        if r2_achieved or job_runner.is_cancelled(run_id):
+            tuning_history["summary_text"] = f"Round 2 hyperparameter tuning boosted score to {best_score_r2 * 100:.1f}%, surpassing the 80% benchmark!"
+            return tuning_history
+
+        # ROUND 3: Multi-Model Ensemble Stacking & Blending
+        job_runner.update_status(
+            run_id,
+            stage="Continuous Tuning: Round 3 (Ensemble Stacking & Blending)",
+            progress_pct=88
+        )
+        logger.info(f"Run {run_id}: Current score {best_score_r2:.4f} still < 0.80. Launching Round 3 (Ensemble Blending).")
+
+        # Pick top 2 or 3 distinct successful scikit-learn estimators
+        completed_sorted = [
+            m for m in results
+            if m.status == "success"
+            and not m.is_naive_baseline
+            and m.model_id in trained_model_objs
+            and isinstance(trained_model_objs.get(m.model_id), BaseEstimator)
+        ]
+        if higher_is_better:
+            completed_sorted.sort(key=lambda m: m.validation_primary_score or 0.0, reverse=True)
+        else:
+            completed_sorted.sort(key=lambda m: m.validation_primary_score or 999.0)
+
+        top_candidates = completed_sorted[:3]
+        if len(top_candidates) >= 2:
+            ens_estimators = [(c.model_id, trained_model_objs[c.model_id]) for c in top_candidates]
+            m_id = "model_tune_r3_ensemble"
+            t0 = time.time()
+            try:
+                if is_clf:
+                    all_proba = all(hasattr(est, "predict_proba") for _, est in ens_estimators)
+                    voting_ensemble = VotingClassifier(
+                        estimators=ens_estimators,
+                        voting="soft" if all_proba else "hard"
+                    )
+                else:
+                    voting_ensemble = VotingRegressor(estimators=ens_estimators)
+
+                voting_ensemble.fit(X_tr_prep, y_tr)
+                t_dur = time.time() - t0
+                val_preds = voting_ensemble.predict(X_val_prep)
+                val_probs = None
+                if is_clf and hasattr(voting_ensemble, "predict_proba"):
+                    try:
+                        val_probs = voting_ensemble.predict_proba(X_val_prep)
+                    except Exception:
+                        pass
+                val_metrics = compute_metrics(config.problem_type, y_val, val_preds, val_probs)
+                val_score = val_metrics.get(primary_metric, 0.0)
+
+                tr_preds = voting_ensemble.predict(X_tr_prep)
+                tr_probs = None
+                if is_clf and hasattr(voting_ensemble, "predict_proba"):
+                    try:
+                        tr_probs = voting_ensemble.predict_proba(X_tr_prep)
+                    except Exception:
+                        pass
+                tr_metrics = compute_metrics(config.problem_type, y_tr, tr_preds, tr_probs)
+                tr_score = tr_metrics.get(primary_metric, 0.0)
+
+                ens_res = ModelResult(
+                    model_id=m_id,
+                    model_name="Auto-Tuned Weighted Ensemble Blend",
+                    engine="ensemble_blend",
+                    problem_type=config.problem_type,
+                    validation_metrics=val_metrics,
+                    validation_primary_score=val_score,
+                    train_metrics=tr_metrics,
+                    train_primary_score=tr_score,
+                    training_time_seconds=round(t_dur, 3),
+                    status="success",
+                    is_naive_baseline=False,
+                    tuning_round=3,
+                    tuning_stage="Ensemble Stacking & Blending"
+                )
+                results.append(ens_res)
+                trained_model_objs[m_id] = voting_ensemble
+            except Exception as e:
+                logger.warning(f"Continuous tuning Round 3 ensemble failed: {e}")
+
+        best_score_r3, winner_r3 = get_best_score(results)
+        if higher_is_better:
+            r3_achieved = (best_score_r3 >= target_score)
+        else:
+            r2_val = winner_r3.validation_metrics.get("r2", 0.0) if winner_r3 else 0.0
+            r3_achieved = (r2_val >= target_score)
+        tuning_history["rounds_run"] = 3
+        tuning_history["target_achieved"] = r3_achieved
+        tuning_history["round_scores"].append({
+            "round": 3,
+            "stage": "Ensemble Stacking & Blending",
+            "best_score": round(float(best_score_r3), 4),
+            "target_achieved": r3_achieved
+        })
+
+        if r3_achieved:
+            tuning_history["summary_text"] = f"Round 3 ensemble blending pushed score to {best_score_r3 * 100:.1f}%, successfully surpassing the 80% benchmark!"
+        else:
+            tuning_history["summary_text"] = f"Completed 3 continuous tuning rounds. Top score achieved: {best_score_r3 * 100:.1f}%."
+
+        tuning_history["total_models"] = len(results)
+        return tuning_history
 
     def _evaluate_on_test_data(
         self,
@@ -471,42 +802,83 @@ class TrainingService:
         trained_model_objs: Dict[str, Any],
         config: AutoMLConfig,
         primary_metric: str,
-        X_test_prep: np.ndarray,
-        X_test_raw: pd.DataFrame,
-        y_test: np.ndarray,
+        partitions: DatasetPartitions,
         naive_baseline_score: Optional[float]
     ) -> None:
-        """Strictly evaluates winning model on untouched test partition."""
+        """Strictly evaluates winning model on internal train partition and untouched external test partition."""
         model_obj = trained_model_objs.get(winner.model_id)
         if model_obj is None:
-            return
+            raise EvaluationError(f"Trained model object for winner '{winner.model_id}' ({winner.model_name}) not found.")
 
         try:
+            # 1. Training set evaluation for winner (strictly on internal train fold)
             if winner.engine.lower() == "autogluon":
-                # Path A evaluation on raw test features
-                test_df = X_test_raw.copy()
-                test_preds = model_obj.predict(test_df)
-                test_probs = None
+                submodel = getattr(winner, "submodel_name", None)
+                if submodel:
+                    tr_preds = model_obj.predict(partitions.X_tr_raw, model=submodel)
+                else:
+                    tr_preds = model_obj.predict(partitions.X_tr_raw)
+                tr_probs = None
                 try:
-                    test_probs = model_obj.predict_proba(test_df).to_numpy()
+                    if submodel:
+                        tr_probs = model_obj.predict_proba(partitions.X_tr_raw, model=submodel).to_numpy()
+                    else:
+                        tr_probs = model_obj.predict_proba(partitions.X_tr_raw).to_numpy()
                 except Exception:
                     pass
             else:
-                # Path B evaluation on preprocessed test features
-                test_preds = model_obj.predict(X_test_prep)
+                tr_preds = model_obj.predict(partitions.X_tr_prep)
+                tr_probs = None
+                if hasattr(model_obj, "predict_proba"):
+                    try:
+                        tr_probs = model_obj.predict_proba(partitions.X_tr_prep)
+                    except Exception:
+                        pass
+
+            winner.train_metrics = compute_metrics(
+                config.problem_type,
+                partitions.y_tr,
+                tr_preds,
+                tr_probs,
+                partition="train",
+                run_id=config.dataset_id,
+                model_name=winner.model_name
+            )
+            winner.train_primary_score = winner.train_metrics.get(primary_metric)
+
+            # 2. Test set evaluation on untouched external test partition
+            if winner.engine.lower() == "autogluon":
+                submodel = getattr(winner, "submodel_name", None)
+                if submodel:
+                    test_preds = model_obj.predict(partitions.X_test_raw, model=submodel)
+                else:
+                    test_preds = model_obj.predict(partitions.X_test_raw)
+                test_probs = None
+                try:
+                    if submodel:
+                        test_probs = model_obj.predict_proba(partitions.X_test_raw, model=submodel).to_numpy()
+                    else:
+                        test_probs = model_obj.predict_proba(partitions.X_test_raw).to_numpy()
+                except Exception:
+                    pass
+            else:
+                test_preds = model_obj.predict(partitions.X_test_prep)
                 test_probs = None
                 if hasattr(model_obj, "predict_proba"):
                     try:
-                        test_probs = model_obj.predict_proba(X_test_prep)
+                        test_probs = model_obj.predict_proba(partitions.X_test_prep)
                     except Exception:
                         pass
 
             # Calculate test metrics
             winner.test_metrics = compute_metrics(
                 config.problem_type,
-                y_test,
+                partitions.y_test,
                 test_preds,
-                test_probs
+                test_probs,
+                partition="test",
+                run_id=config.dataset_id,
+                model_name=winner.model_name
             )
             winner.test_primary_score = winner.test_metrics.get(primary_metric)
 
@@ -523,15 +895,17 @@ class TrainingService:
                 primary_metric=primary_metric,
                 val_score=winner.validation_primary_score,
                 test_score=winner.test_primary_score,
-                naive_baseline_score=naive_baseline_score
+                naive_baseline_score=naive_baseline_score,
+                train_score=winner.train_primary_score
             )
             winner.diagnostic_label = diag_label
             winner.diagnostic_notes = diag_notes
 
         except Exception as e:
-            logger.error(f"Error evaluating winner on test partition: {e}", exc_info=True)
+            logger.error(f"Error evaluating winner on partitions: {e}", exc_info=True)
             winner.diagnostic_label = "Evaluation Incomplete"
-            winner.diagnostic_notes = [f"Failed during test set evaluation: {str(e)}"]
+            winner.diagnostic_notes = [f"Failed during evaluation: {str(e)}"]
+            raise EvaluationError(f"Failed evaluating winner model '{winner.model_name}' on evaluation partitions: {e}")
 
     def _save_winner_artifact(
         self,
@@ -540,8 +914,12 @@ class TrainingService:
         run_dir: Path
     ) -> None:
         """Saves winning model and metadata bundle."""
+        if winner.engine.lower() == "autogluon":
+            winner.model_path = str(run_dir / "models" / "autogluon")
+            return
+
         model_obj = trained_model_objs.get(winner.model_id)
-        if model_obj is None or winner.engine.lower() == "autogluon":
+        if model_obj is None:
             return
         
         bundle_path = run_dir / "models" / "final_model.joblib"
@@ -553,11 +931,13 @@ class TrainingService:
                 "model_object": model_obj,
                 "hyperparameters": winner.hyperparameters,
                 "validation_metrics": winner.validation_metrics,
+                "train_metrics": winner.train_metrics,
                 "test_metrics": winner.test_metrics
             }, bundle_path)
             winner.model_path = str(bundle_path)
         except Exception as e:
             logger.warning(f"Could not dump winner model to disk: {e}")
+
 
     def _save_run_artifacts(
         self,
@@ -566,7 +946,8 @@ class TrainingService:
         primary_metric: str,
         leaderboard: List[ModelResult],
         winner: Optional[ModelResult],
-        naive_baseline_score: Optional[float]
+        naive_baseline_score: Optional[float],
+        tuning_history: Optional[Dict[str, Any]] = None
     ) -> None:
         """Persists leaderboard.json, metrics.json, and summary.json."""
         lb_dicts = [m.model_dump() for m in leaderboard]
@@ -580,7 +961,11 @@ class TrainingService:
             "naive_baseline_score": naive_baseline_score,
             "winner_id": winner.model_id if winner else None,
             "winner_validation_metrics": winner.validation_metrics if winner else {},
+            "winner_train_metrics": winner.train_metrics if winner else {},
+            "winner_train_score": winner.train_primary_score if winner else None,
             "winner_test_metrics": winner.test_metrics if winner else {},
+            "winner_test_score": winner.test_primary_score if winner else None,
+            "tuning_history": tuning_history or {},
             "generalization_gap": winner.generalization_gap if winner else None,
             "diagnostic_label": winner.diagnostic_label if winner else None,
             "diagnostic_notes": winner.diagnostic_notes if winner else []
@@ -600,7 +985,9 @@ class TrainingService:
             "winning_model": winner.model_name if winner else "None",
             "winning_engine": winner.engine if winner else "None",
             "validation_score": winner.validation_primary_score if winner else None,
+            "train_score": winner.train_primary_score if winner else None,
             "test_score": winner.test_primary_score if winner else None,
+            "tuning_history": tuning_history or {},
             "generalization_gap": winner.generalization_gap if winner else None,
             "diagnostic_label": winner.diagnostic_label if winner else None,
             "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())

@@ -35,9 +35,13 @@ export interface ModelResult {
   problem_type: string;
   validation_metrics: Record<string, number>;
   validation_primary_score: number;
+  train_metrics?: Record<string, number>;
+  train_primary_score?: number;
   test_metrics?: Record<string, number>;
   test_primary_score?: number;
   generalization_gap?: number;
+  tuning_round?: number;
+  tuning_stage?: string;
   training_time_seconds: number;
   status: "success" | "failed" | "timeout";
   error_message?: string;
@@ -56,7 +60,11 @@ export interface RunMetricsPayload {
   naive_baseline_score?: number;
   winner_id?: string;
   winner_validation_metrics?: Record<string, number>;
+  winner_train_metrics?: Record<string, number>;
+  winner_train_score?: number;
   winner_test_metrics?: Record<string, number>;
+  winner_test_score?: number;
+  tuning_history?: Record<string, any>;
   generalization_gap?: number;
   diagnostic_label?: string;
   diagnostic_notes?: string[];
@@ -74,7 +82,9 @@ export interface RunSummaryPayload {
   winning_model: string;
   winning_engine: string;
   validation_score?: number;
+  train_score?: number;
   test_score?: number;
+  tuning_history?: Record<string, any>;
   generalization_gap?: number;
   diagnostic_label?: string;
   created_at: string;

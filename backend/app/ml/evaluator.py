@@ -11,6 +11,8 @@ class ModelResult(BaseModel):
     problem_type: str
     validation_metrics: Dict[str, float] = Field(default_factory=dict)
     validation_primary_score: float = 0.0
+    train_metrics: Optional[Dict[str, float]] = None
+    train_primary_score: Optional[float] = None
     test_metrics: Optional[Dict[str, float]] = None
     test_primary_score: Optional[float] = None
     generalization_gap: Optional[float] = None
@@ -23,6 +25,9 @@ class ModelResult(BaseModel):
     is_winner: bool = False
     model_path: Optional[str] = None
     hyperparameters: Optional[Dict[str, Any]] = None
+    submodel_name: Optional[str] = None
+    tuning_round: int = 1
+    tuning_stage: Optional[str] = None
 
 def compute_generalization_gap(
     primary_metric: str,
@@ -134,3 +139,29 @@ def rank_and_select_winner(
     # Combined leaderboard: successful models first, then failed models
     leaderboard = sorted_successful + failed
     return winner, leaderboard
+
+def format_human_metric(val: Optional[float], metric: str = "") -> str:
+    """
+    Formats a raw ML metric into a human-friendly string.
+    Accuracy, precision, recall, f1, R2, ROC AUC -> percentage (e.g., 85.4%).
+    Error metrics (MAE, RMSE, Log Loss) -> formatted number (e.g. ±12.45).
+    """
+    if val is None or np.isnan(val):
+        return "—"
+    
+    clean_metric = metric.lower()
+    if clean_metric in ["accuracy", "balanced_accuracy", "f1", "f1_macro", "f1_weighted", "precision", "recall", "roc_auc", "r2"]:
+        # Represent as percentage
+        pct = val * 100.0
+        return f"{pct:.1f}%"
+    elif clean_metric in ["mae", "median_absolute_error"]:
+        return f"±{val:.2f}"
+    elif clean_metric in ["rmse", "mse"]:
+        return f"{val:.2f}"
+    elif clean_metric in ["mape"]:
+        return f"{(val * 100.0):.1f}%"
+    else:
+        if 0.0 <= val <= 1.0:
+            return f"{(val * 100.0):.1f}%"
+        return f"{val:.4f}"
+

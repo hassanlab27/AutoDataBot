@@ -135,3 +135,13 @@ class PreprocessingError(AutoDataBotException):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             details=details
         )
+
+class EvaluationError(AutoDataBotException):
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):
+        super().__init__(
+            error="EVALUATION_ERROR",
+            message=message,
+            status_code=status.HTTP_400_BAD_REQUEST,
+            details=details
+        )
+

@@ -47,3 +47,4 @@ data/wiki_pages/*
 .vscode/
 .idea/
 *.log
+catboost_info/

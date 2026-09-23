@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { ClassificationPerformance } from '../../types/evaluation';
 import { PlotlyChart } from '../eda/PlotlyChart';
-import { Sliders } from 'lucide-react';
+import { Sliders, CheckCircle2 } from 'lucide-react';
+import { formatMetricScore, getMetricExplanatoryText } from '../../utils/evaluationFormatters';
 
 interface ClassificationPerformanceViewProps {
   performance: ClassificationPerformance;
@@ -10,7 +11,7 @@ interface ClassificationPerformanceViewProps {
 export const ClassificationPerformanceView: React.FC<ClassificationPerformanceViewProps> = ({
   performance
 }) => {
-  const [cmMode, setCmMode] = useState<'counts' | 'percentages'>('counts');
+  const [cmMode, setCmMode] = useState<'counts' | 'percentages'>('percentages');
   const [selectedThreshold, setSelectedThreshold] = useState<number>(0.5);
 
   const {
@@ -23,15 +24,24 @@ export const ClassificationPerformanceView: React.FC<ClassificationPerformanceVi
     calibration
   } = performance || {};
 
-  const formatScore = (val?: number | null) => {
-    if (val === undefined || val === null || isNaN(val)) return '—';
-    return Number(val).toFixed(4);
-  };
-
   // Safe Confusion Matrix Heatmap Data
   const cmMatrix = confusion_matrix?.matrix || [];
   const cmNorm = confusion_matrix?.matrix_normalized || (confusion_matrix as any)?.normalized_matrix || cmMatrix;
   const cmLabels = confusion_matrix?.labels || [];
+
+  const totalSamples = confusion_matrix?.total_samples || (cmMatrix.reduce((acc, row) => acc + (row?.reduce((a, b) => a + b, 0) || 0), 0));
+  let correctSamples = 0;
+  for (let i = 0; i < Math.min(cmMatrix.length, (cmMatrix[0]?.length || 0)); i++) {
+    correctSamples += cmMatrix[i]?.[i] || 0;
+  }
+  const incorrectSamples = Math.max(0, totalSamples - correctSamples);
+  const correctPct = totalSamples > 0 ? ((correctSamples / totalSamples) * 100).toFixed(1) : '—';
+  const mistakePct = totalSamples > 0 ? ((incorrectSamples / totalSamples) * 100).toFixed(1) : '—';
+
+  const plainSummaryText = performance.confusion_dict?.summary_text ||
+    (totalSamples > 0
+      ? `The model correctly classified ${correctSamples} out of ${totalSamples} held-out test samples (${correctPct}%), with ${incorrectSamples} mistakes (${mistakePct}%).`
+      : 'Accuracy distribution across held-out test partition.');
 
   const cmValues = cmMode === 'counts'
     ? cmMatrix
@@ -69,7 +79,7 @@ export const ClassificationPerformanceView: React.FC<ClassificationPerformanceVi
 
   const cmLayout = {
     title: {
-      text: `Confusion Matrix (${cmMode === 'counts' ? 'Held-Out Sample Counts' : 'Row Normalization %'})`,
+      text: `Confusion Matrix (${cmMode === 'counts' ? 'Sample Counts' : 'Row Normalized Accuracy %'})`,
       font: { color: '#f8fafc', size: 14 }
     },
     xaxis: { title: 'Predicted Class', tickfont: { color: '#cbd5e1' }, side: 'bottom' },
@@ -87,20 +97,20 @@ export const ClassificationPerformanceView: React.FC<ClassificationPerformanceVi
       x: [0, 1],
       y: [0, 1],
       mode: 'lines',
-      name: 'Random Baseline (AUC = 0.50)',
+      name: 'Random Baseline (AUC = 50.0%)',
       line: { dash: 'dash', color: '#64748b', width: 1.5 }
     },
     {
       x: rocX,
       y: rocY,
       mode: 'lines',
-      name: `Trained Model (AUC = ${formatScore(roc_curve.auc)})`,
+      name: `Trained Model (AUC = ${formatMetricScore('roc_auc', roc_curve.auc)})`,
       line: { color: '#6366f1', width: 2.5 }
     }
   ] : [];
 
   const rocLayout = {
-    title: { text: `ROC Curve (AUC: ${formatScore(roc_curve?.auc)})`, font: { color: '#f8fafc', size: 14 } },
+    title: { text: `ROC Curve (AUC: ${formatMetricScore('roc_auc', roc_curve?.auc)})`, font: { color: '#f8fafc', size: 14 } },
     xaxis: { title: 'False Positive Rate (1 - Specificity)', range: [-0.02, 1.02], gridcolor: '#1e293b' },
     yaxis: { title: 'True Positive Rate (Sensitivity / Recall)', range: [-0.02, 1.02], gridcolor: '#1e293b' },
     legend: { orientation: 'h', y: -0.25, font: { color: '#cbd5e1', size: 11 } },
@@ -117,7 +127,7 @@ export const ClassificationPerformanceView: React.FC<ClassificationPerformanceVi
       x: prX,
       y: prY,
       mode: 'lines',
-      name: `PR Curve (Avg Prec = ${formatScore(pr_curve.average_precision)})`,
+      name: `PR Curve (Avg Prec = ${formatMetricScore('precision', pr_curve.average_precision)})`,
       line: { color: '#10b981', width: 2.5 },
       fill: 'tozeroy',
       fillcolor: 'rgba(16, 185, 129, 0.1)'
@@ -125,7 +135,7 @@ export const ClassificationPerformanceView: React.FC<ClassificationPerformanceVi
   ] : [];
 
   const prLayout = {
-    title: { text: `Precision-Recall Curve (AP: ${formatScore(pr_curve?.average_precision)})`, font: { color: '#f8fafc', size: 14 } },
+    title: { text: `Precision-Recall Curve (AP: ${formatMetricScore('precision', pr_curve?.average_precision)})`, font: { color: '#f8fafc', size: 14 } },
     xaxis: { title: 'Recall', range: [-0.02, 1.02], gridcolor: '#1e293b' },
     yaxis: { title: 'Precision', range: [-0.02, 1.02], gridcolor: '#1e293b' },
     legend: { orientation: 'h', y: -0.25, font: { color: '#cbd5e1', size: 11 } },
@@ -142,21 +152,21 @@ export const ClassificationPerformanceView: React.FC<ClassificationPerformanceVi
       x: [0, 1],
       y: [0, 1],
       mode: 'lines',
-      name: 'Perfect Calibration',
+      name: 'Perfect Calibration (Ideal)',
       line: { dash: 'dash', color: '#64748b', width: 1.5 }
     },
     {
       x: calPred,
       y: calTrue,
       mode: 'lines+markers',
-      name: `Model Calibration (Brier = ${formatScore(calibration.brier_score)})`,
-      line: { color: '#a855f7', width: 2 },
-      marker: { size: 6, color: '#c084fc' }
+      name: 'Empirical Probability',
+      line: { color: '#a855f7', width: 2.5 },
+      marker: { color: '#c084fc', size: 7 }
     }
   ] : [];
 
   const calibrationLayout = {
-    title: { text: `Probability Calibration (Brier: ${formatScore(calibration?.brier_score)})`, font: { color: '#f8fafc', size: 14 } },
+    title: { text: 'Reliability Diagram (Probability Calibration)', font: { color: '#f8fafc', size: 14 } },
     xaxis: { title: 'Mean Predicted Probability', range: [-0.02, 1.02], gridcolor: '#1e293b' },
     yaxis: { title: 'Observed Fraction of Positives', range: [-0.02, 1.02], gridcolor: '#1e293b' },
     legend: { orientation: 'h', y: -0.25, font: { color: '#cbd5e1', size: 11 } },
@@ -164,40 +174,48 @@ export const ClassificationPerformanceView: React.FC<ClassificationPerformanceVi
     margin: { l: 55, r: 25, t: 40, b: 65 }
   };
 
-  // Safe per-class metrics handling
-  const perClassItems: Array<{ classLabel: string; precision?: number; recall?: number; f1?: number; support?: number }> = [];
-  if (per_class_metrics && typeof per_class_metrics === 'object') {
-    Object.entries(per_class_metrics).forEach(([cls, cm]) => {
-      perClassItems.push({
-        classLabel: cls,
-        precision: (cm as any)?.precision,
-        recall: (cm as any)?.recall,
-        f1: (cm as any)?.f1,
-        support: (cm as any)?.support
-      });
-    });
-  } else if (Array.isArray((performance as any)?.per_class)) {
-    ((performance as any).per_class as any[]).forEach((item: any) => {
-      perClassItems.push({
-        classLabel: item?.class_label !== undefined ? String(item.class_label) : (item?.class !== undefined ? String(item.class) : ''),
-        precision: item?.precision,
-        recall: item?.recall,
-        f1: item?.f1,
-        support: item?.support
-      });
-    });
-  }
-
-  // Find closest threshold row for slider
-  const closestThresholdPoint = (threshold_analysis && threshold_analysis.length > 0)
+  // Threshold Points
+  const closestThresholdPoint = threshold_analysis && threshold_analysis.length > 0
     ? threshold_analysis.reduce((prev, curr) =>
         Math.abs(curr.threshold - selectedThreshold) < Math.abs(prev.threshold - selectedThreshold) ? curr : prev
-      , threshold_analysis[0])
+      )
     : null;
+
+  // Normalized per-class items
+  const perClassItems = per_class_metrics
+    ? Object.entries(per_class_metrics).map(([classLabel, val]: [string, any]) => ({
+        classLabel,
+        precision: val?.precision,
+        recall: val?.recall,
+        f1: val?.f1,
+        support: val?.support
+      }))
+    : [];
 
   return (
     <div className="eval-container">
-      {/* 1. Primary Metrics Ribbon */}
+      {/* Plain-Language Accuracy Summary Banner */}
+      <div className="eval-notice-box" style={{ background: 'rgba(99, 102, 241, 0.08)', border: '1px solid rgba(99, 102, 241, 0.25)', padding: '1rem 1.25rem' }}>
+        <CheckCircle2 size={20} className="text-emerald-400" style={{ flexShrink: 0, marginTop: '2px' }} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+            <span style={{ fontWeight: 800, color: '#f8fafc', fontSize: '0.95rem' }}>
+              Plain-Language Model Performance Summary
+            </span>
+            <span className="eval-badge eval-badge-emerald">
+              Accuracy: {correctPct}%
+            </span>
+            <span className="eval-badge eval-badge-indigo">
+              {totalSamples} Held-out Samples
+            </span>
+          </div>
+          <div style={{ color: '#cbd5e1', fontSize: '0.85rem', lineHeight: '1.4' }}>
+            {plainSummaryText}
+          </div>
+        </div>
+      </div>
+
+      {/* 1. Primary Metrics Ribbon with Refined Percentage Values */}
       <section aria-label="Key Performance Metrics">
         <div className="eval-grid-metrics">
           {Object.entries(metrics).map(([key, val]) => (
@@ -205,8 +223,11 @@ export const ClassificationPerformanceView: React.FC<ClassificationPerformanceVi
               <div className="eval-stat-label">
                 <span>{key.replace(/_/g, ' ')}</span>
               </div>
-              <div className="eval-stat-val" style={{ fontSize: '1.45rem' }}>
-                {formatScore(val)}
+              <div className="eval-stat-val" style={{ fontSize: '1.45rem', color: '#818cf8' }}>
+                {formatMetricScore(key, val)}
+              </div>
+              <div className="eval-stat-subtext">
+                {getMetricExplanatoryText(key)}
               </div>
             </div>
           ))}
@@ -219,7 +240,17 @@ export const ClassificationPerformanceView: React.FC<ClassificationPerformanceVi
         <div className="eval-card" style={{ display: 'flex', flexDirection: 'column' }}>
           <div className="eval-card-header">
             <div>
-              <h3 className="eval-card-title">Confusion Matrix</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <h3 className="eval-card-title">Confusion Matrix</h3>
+                <span className="eval-badge eval-badge-emerald" style={{ fontSize: '0.7rem' }}>
+                  ✓ Correct: {correctPct}% ({correctSamples})
+                </span>
+                {incorrectSamples > 0 && (
+                  <span className="eval-badge eval-badge-amber" style={{ fontSize: '0.7rem' }}>
+                    ✕ Mistakes: {mistakePct}% ({incorrectSamples})
+                  </span>
+                )}
+              </div>
               <p className="eval-card-desc">Actual vs predicted label distributions on held-out test data</p>
             </div>
 
@@ -227,17 +258,17 @@ export const ClassificationPerformanceView: React.FC<ClassificationPerformanceVi
             <div className="eval-segmented-control" role="group" aria-label="Confusion Matrix display mode">
               <button
                 type="button"
-                onClick={() => setCmMode('counts')}
-                className={`eval-segmented-btn ${cmMode === 'counts' ? 'eval-segmented-btn-active' : ''}`}
-              >
-                Counts
-              </button>
-              <button
-                type="button"
                 onClick={() => setCmMode('percentages')}
                 className={`eval-segmented-btn ${cmMode === 'percentages' ? 'eval-segmented-btn-active' : ''}`}
               >
                 Percentages
+              </button>
+              <button
+                type="button"
+                onClick={() => setCmMode('counts')}
+                className={`eval-segmented-btn ${cmMode === 'counts' ? 'eval-segmented-btn-active' : ''}`}
+              >
+                Counts
               </button>
             </div>
           </div>
@@ -246,7 +277,7 @@ export const ClassificationPerformanceView: React.FC<ClassificationPerformanceVi
             <PlotlyChart data={cmChartData} layout={cmLayout} style={{ width: '100%', height: '380px' }} />
           </div>
 
-          {/* Per-class Breakdown Badges */}
+          {/* Per-class Breakdown Badges with Refined Percentages */}
           {perClassItems.length > 0 && (
             <div style={{
               display: 'flex',
@@ -273,11 +304,11 @@ export const ClassificationPerformanceView: React.FC<ClassificationPerformanceVi
                   }}
                 >
                   <span style={{ fontWeight: 700, color: '#818cf8' }}>Class {cm.classLabel}:</span>
-                  <span>Prec <b>{formatScore(cm.precision)}</b></span>
+                  <span>Prec <b>{formatMetricScore('precision', cm.precision)}</b></span>
                   <span style={{ color: '#475569' }}>|</span>
-                  <span>Rec <b>{formatScore(cm.recall)}</b></span>
+                  <span>Rec <b>{formatMetricScore('recall', cm.recall)}</b></span>
                   <span style={{ color: '#475569' }}>|</span>
-                  <span>F1 <b>{formatScore(cm.f1)}</b></span>
+                  <span>F1 <b>{formatMetricScore('f1', cm.f1)}</b></span>
                   <span style={{ color: '#64748b', fontSize: '0.7rem' }}>({cm.support ?? 0} samples)</span>
                 </div>
               ))}
@@ -294,7 +325,7 @@ export const ClassificationPerformanceView: React.FC<ClassificationPerformanceVi
             </div>
             {roc_curve?.auc !== undefined && (
               <span className="eval-badge eval-badge-indigo">
-                AUC: {formatScore(roc_curve.auc)}
+                AUC: {formatMetricScore('roc_auc', roc_curve.auc)}
               </span>
             )}
           </div>
@@ -322,7 +353,7 @@ export const ClassificationPerformanceView: React.FC<ClassificationPerformanceVi
             </div>
             {pr_curve?.average_precision !== undefined && (
               <span className="eval-badge eval-badge-emerald">
-                AP: {formatScore(pr_curve.average_precision)}
+                Avg Precision: {formatMetricScore('precision', pr_curve.average_precision)}
               </span>
             )}
           </div>
@@ -347,7 +378,7 @@ export const ClassificationPerformanceView: React.FC<ClassificationPerformanceVi
             </div>
             {calibration?.brier_score !== undefined && (
               <span className="eval-badge eval-badge-purple">
-                Brier: {formatScore(calibration.brier_score)}
+                Brier Error: {Number(calibration.brier_score).toFixed(3)}
               </span>
             )}
           </div>
@@ -378,7 +409,7 @@ export const ClassificationPerformanceView: React.FC<ClassificationPerformanceVi
               </p>
             </div>
             <div className="eval-badge eval-badge-amber" style={{ fontSize: '0.7rem' }}>
-              Diagnostic Tool Only
+              Interactive Sensitivity Tool
             </div>
           </div>
 
@@ -386,10 +417,10 @@ export const ClassificationPerformanceView: React.FC<ClassificationPerformanceVi
           <div className="eval-slider-container">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginBottom: '0.5rem' }}>
               <label htmlFor="threshold-slider-input" style={{ fontSize: '0.85rem', fontWeight: 700, color: '#f8fafc' }}>
-                Decision Threshold: <span style={{ fontFamily: 'var(--font-mono, monospace)', color: '#818cf8', fontSize: '1rem', marginLeft: '0.35rem' }}>{selectedThreshold.toFixed(2)}</span>
+                Decision Threshold: <span style={{ fontFamily: 'var(--font-mono, monospace)', color: '#818cf8', fontSize: '1rem', marginLeft: '0.35rem' }}>{(selectedThreshold * 100).toFixed(0)}%</span>
               </label>
               <span style={{ fontSize: '0.75rem', color: 'var(--eval-text-dim)', fontFamily: 'var(--font-mono, monospace)' }}>
-                Range: [0.05 — 0.95]
+                Range: [5% — 95%]
               </span>
             </div>
 
@@ -410,7 +441,7 @@ export const ClassificationPerformanceView: React.FC<ClassificationPerformanceVi
                 <div className="eval-stat-card" style={{ textAlign: 'center' }}>
                   <div className="eval-stat-label" style={{ justifyContent: 'center' }}>Precision</div>
                   <div className="eval-stat-val eval-stat-val-green">
-                    {formatScore(closestThresholdPoint.precision)}
+                    {formatMetricScore('precision', closestThresholdPoint.precision)}
                   </div>
                   <div className="eval-stat-subtext">True Positives / Predicted Positives</div>
                 </div>
@@ -418,7 +449,7 @@ export const ClassificationPerformanceView: React.FC<ClassificationPerformanceVi
                 <div className="eval-stat-card" style={{ textAlign: 'center' }}>
                   <div className="eval-stat-label" style={{ justifyContent: 'center' }}>Recall / Sensitivity</div>
                   <div className="eval-stat-val eval-stat-val-indigo">
-                    {formatScore(closestThresholdPoint.recall)}
+                    {formatMetricScore('recall', closestThresholdPoint.recall)}
                   </div>
                   <div className="eval-stat-subtext">True Positives / Actual Positives</div>
                 </div>
@@ -426,7 +457,7 @@ export const ClassificationPerformanceView: React.FC<ClassificationPerformanceVi
                 <div className="eval-stat-card" style={{ textAlign: 'center' }}>
                   <div className="eval-stat-label" style={{ justifyContent: 'center' }}>F1-Score</div>
                   <div className="eval-stat-val" style={{ color: '#c084fc' }}>
-                    {formatScore(closestThresholdPoint.f1)}
+                    {formatMetricScore('f1', closestThresholdPoint.f1)}
                   </div>
                   <div className="eval-stat-subtext">Harmonic Mean of Precision & Recall</div>
                 </div>

@@ -35,14 +35,18 @@ def compare_run_models(run_id: str) -> Dict[str, Any]:
     models_summary: List[Dict[str, Any]] = []
     chart_models: List[str] = []
     chart_val_scores: List[float] = []
+    chart_train_scores: List[Optional[float]] = []
     chart_test_scores: List[Optional[float]] = []
 
     for m in leaderboard:
         m_name = m.get("model_name", "Unknown")
         val_score = m.get("validation_primary_score", 0.0)
+        train_score = m.get("train_primary_score")
         test_score = m.get("test_primary_score")
         gap = m.get("generalization_gap")
         is_winner = m.get("is_winner", False)
+        tuning_rnd = m.get("tuning_round", 1)
+        tuning_stg = m.get("tuning_stage")
 
         models_summary.append({
             "model_id": m.get("model_id"),
@@ -52,8 +56,11 @@ def compare_run_models(run_id: str) -> Dict[str, Any]:
             "is_winner": is_winner,
             "is_naive_baseline": m.get("is_naive_baseline", False),
             "validation_score": val_score,
+            "train_score": train_score,
             "test_score": test_score,
             "generalization_gap": gap,
+            "tuning_round": tuning_rnd,
+            "tuning_stage": tuning_stg,
             "training_time_seconds": m.get("training_time_seconds", 0.0),
             "diagnostic_label": m.get("diagnostic_label")
         })
@@ -61,6 +68,7 @@ def compare_run_models(run_id: str) -> Dict[str, Any]:
         if m.get("status") == "success":
             chart_models.append(m_name)
             chart_val_scores.append(round(float(val_score), 4) if val_score is not None else 0.0)
+            chart_train_scores.append(round(float(train_score), 4) if train_score is not None else None)
             chart_test_scores.append(round(float(test_score), 4) if test_score is not None else None)
 
     return {
@@ -70,6 +78,7 @@ def compare_run_models(run_id: str) -> Dict[str, Any]:
         "chart_data": {
             "models": chart_models,
             "validation_scores": chart_val_scores,
+            "train_scores": chart_train_scores,
             "test_scores": chart_test_scores
         }
     }

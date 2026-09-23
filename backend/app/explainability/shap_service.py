@@ -222,10 +222,13 @@ class ExplainabilityService:
                 "summary_points": []
             }
 
-        X = data.X_test_prep
-        n_samples = len(X)
+        # Compute SHAP on validation partition to keep external test set untouched
+        X = data.X_val_prep if (data.X_val_prep is not None and len(data.X_val_prep) > 0) else data.X_tr_prep
+        if X is None or len(X) == 0:
+            X = data.X_train_prep
+        n_samples = len(X) if X is not None else 0
         if n_samples == 0:
-            return {"available": False, "reason": "Test evaluation dataset is empty."}
+            return {"available": False, "reason": "Validation evaluation dataset is empty."}
 
         # Deterministic sampling for speed
         rng = np.random.RandomState(42)
@@ -342,6 +345,7 @@ class ExplainabilityService:
 
             return {
                 "available": True,
+                "partition": "validation",
                 "sample_size": len(X_sample),
                 "total_features": n_feats,
                 "global_importance": global_records,
@@ -416,7 +420,8 @@ class ExplainabilityService:
                 explainer = shap.TreeExplainer(model)
                 shap_obj = explainer.shap_values(row)
             except Exception:
-                bg = shap.sample(X, min(30, len(X)), random_state=42)
+                bg_pool = data.X_val_prep if (data.X_val_prep is not None and len(data.X_val_prep) > 0) else X
+                bg = shap.sample(bg_pool, min(30, len(bg_pool)), random_state=42)
                 explainer = shap.Explainer(model.predict, bg)
                 res_obj = explainer(row)
                 shap_obj = res_obj.values

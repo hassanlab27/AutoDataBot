@@ -272,3 +272,100 @@ def test_shap_graceful_failure_unsupported():
     shap_res = explainability_service._compute_shap(eval_data, sample_size=10, max_features=2)
     assert shap_res["available"] is False
     assert "reason" in shap_res
+
+# -------------------------------------------------------------
+# 5. Continuous Tuning & Human-Readable Metrics Tests
+# -------------------------------------------------------------
+
+def test_refined_classification_metrics_and_plain_language():
+    y_true = np.array([1, 0, 1, 1, 0, 0, 1, 1, 0, 1])
+    y_pred = np.array([1, 0, 1, 1, 0, 1, 1, 0, 0, 1])
+    y_prob = np.array([
+        [0.1, 0.9], [0.8, 0.2], [0.2, 0.8], [0.15, 0.85], [0.9, 0.1],
+        [0.4, 0.6], [0.2, 0.8], [0.6, 0.4], [0.95, 0.05], [0.05, 0.95]
+    ])
+    res = evaluate_classification(y_true, y_pred, y_prob, problem_type="binary_classification")
+    assert "accuracy_pct" in res
+    assert res["accuracy_pct"] == "80.0%"
+    assert "f1_pct" in res
+    assert "confusion_dict" in res
+    cd = res["confusion_dict"]
+    assert cd["correct_count"] == 8
+    assert cd["incorrect_count"] == 2
+    assert cd["accuracy_pct"] == 80.0
+    assert cd["error_pct"] == 20.0
+    assert "8 of 10" in cd["summary_text"]
+
+def test_refined_regression_metrics_and_margins():
+    y_true = np.array([100.0, 110.0, 95.0, 120.0, 105.0])
+    # Predictions within ±5-8%
+    y_pred = np.array([102.0, 108.0, 98.0, 118.0, 104.0])
+    res = evaluate_regression(y_true, y_pred)
+    assert "r2_pct" in res
+    assert "accuracy_within_10_pct" in res
+    assert res["accuracy_within_10_pct"] == 100.0  # 100% within 10%
+    assert "accuracy_within_20_pct" in res
+    assert res["accuracy_within_20_pct"] == 100.0
+    assert "human_summary" in res
+    assert "r2_explained" in res["human_summary"]
+    assert "average_error_mae" in res["human_summary"]
+
+def test_continuous_tuning_execution_reaches_or_logs_benchmark():
+    from app.ml.training_service import training_service
+    from app.ml.config import AutoMLConfig
+    from app.ml.evaluator import ModelResult
+
+    np.random.seed(42)
+    X_tr = np.random.randn(80, 4)
+    # Target linearly separable with noise
+    y_tr = ((X_tr[:, 0] * 2 + X_tr[:, 1]) > 0).astype(int)
+    X_val = np.random.randn(30, 4)
+    y_val = ((X_val[:, 0] * 2 + X_val[:, 1]) > 0).astype(int)
+
+    config = AutoMLConfig(
+        dataset_id="test_ds",
+        target="target",
+        problem_type="binary_classification",
+        training_mode="quick",
+        primary_metric="accuracy",
+        random_state=42,
+        engine_preference="all"
+    )
+
+    # Simulate Round 1 with sub-80% score to trigger continuous tuning
+    r1_model = ModelResult(
+        model_id="m_dummy_r1",
+        model_name="Sub80 Baseline",
+        engine="sklearn",
+        problem_type="binary_classification",
+        validation_metrics={"accuracy": 0.65},
+        validation_primary_score=0.65,
+        training_time_seconds=0.1,
+        status="success",
+        is_naive_baseline=False
+    )
+    results = [r1_model]
+    from sklearn.linear_model import LogisticRegression
+    dummy_clf = LogisticRegression()
+    dummy_clf.fit(X_tr, y_tr)
+    trained_objs = {"m_dummy_r1": dummy_clf}
+
+    tuning_hist = training_service._run_continuous_tuning(
+        config=config,
+        primary_metric="accuracy",
+        X_tr_prep=X_tr,
+        y_tr=y_tr,
+        X_val_prep=X_val,
+        y_val=y_val,
+        results=results,
+        trained_model_objs=trained_objs,
+        run_id="test_tuning_run"
+    )
+
+    assert tuning_hist["target_threshold"] == 0.80
+    assert tuning_hist["rounds_run"] >= 2
+    assert len(tuning_hist["round_scores"]) >= 2
+    # Verify tuned models were added to results
+    assert len(results) > 1
+    assert any(m.tuning_round == 2 for m in results)
+

@@ -41,12 +41,14 @@ def train_flaml_engine(
     flaml_task = "classification" if "classification" in problem_type.lower() else "regression"
     flaml_metric = "auto"
     if eval_metric:
-        if eval_metric in ("f1", "f1_macro", "accuracy", "roc_auc", "rmse", "mae", "r2"):
+        if eval_metric == "f1_macro":
+            flaml_metric = "macro_f1"
+        elif eval_metric in ("f1", "accuracy", "roc_auc", "rmse", "mae", "r2"):
             flaml_metric = eval_metric
 
     automl = AutoML()
     settings = {
-        "time_limit": max(5, time_limit),
+        "time_budget": max(5, time_limit),
         "metric": flaml_metric,
         "task": flaml_task,
         "seed": random_state,
@@ -59,18 +61,31 @@ def train_flaml_engine(
         train_time = round(time.perf_counter() - t0, 3)
 
         best_estimator_name = automl.best_estimator
-        best_model = automl.model.estimator if hasattr(automl, "model") and hasattr(automl.model, "estimator") else automl
+        best_model = automl
 
-        y_val_pred = automl.predict(X_val)
+        y_val_pred = best_model.predict(X_val)
         y_val_prob = None
-        if flaml_task == "classification" and hasattr(automl, "predict_proba"):
+        if flaml_task == "classification" and hasattr(best_model, "predict_proba"):
             try:
-                y_val_prob = automl.predict_proba(X_val)
+                y_val_prob = best_model.predict_proba(X_val)
             except Exception:
                 pass
 
-        val_metrics = compute_metrics(problem_type, y_val, y_val_pred, y_val_prob)
-        train_metrics = compute_metrics(problem_type, y_train, automl.predict(X_train))
+        val_metrics = compute_metrics(
+            problem_type,
+            y_val,
+            y_val_pred,
+            y_val_prob,
+            partition="validation",
+            model_name=f"FLAML_{best_estimator_name}"
+        )
+        train_metrics = compute_metrics(
+            problem_type,
+            y_train,
+            best_model.predict(X_train),
+            partition="train",
+            model_name=f"FLAML_{best_estimator_name}"
+        )
 
         logger.info(f"FLAML finished search in {train_time}s; best model: {best_estimator_name}")
         return [{

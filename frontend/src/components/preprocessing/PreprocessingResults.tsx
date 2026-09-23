@@ -86,7 +86,11 @@ export const PreprocessingResults: React.FC<PreprocessingResultsProps> = ({
             pollingRef.current = null;
             setIsTraining(false);
             if (res.data.error_message) {
-              setTrainingError(res.data.error_message);
+              const raw = res.data.error_message;
+              const clean = raw.includes('Traceback') ? (raw.split('\n').map((l: string) => l.trim()).filter(Boolean).pop() || raw) : raw;
+              setTrainingError(`Training stopped during stage '${res.data.current_stage || 'execution'}': ${clean}`);
+            } else {
+              setTrainingError(`Training marked as ${res.data.status} during stage '${res.data.current_stage || 'execution'}'.`);
             }
           }
         }

@@ -257,13 +257,40 @@ export const MLDashboard: React.FC<MLDashboardProps> = ({ datasetId, onViewEvalu
       )}
 
       {/* Failed / Cancelled Run Notice */}
-      {runDetails && runDetails.status.status === 'failed' && (
-        <div className="p-6 bg-rose-950/20 border border-rose-500/40 rounded-xl text-center">
-          <div className="text-3xl mb-2">✕</div>
+      {((runDetails && runDetails.status.status === 'failed') || (!isTrainingActive && runStatus?.status === 'failed')) && (
+        <div className="p-6 bg-rose-950/20 border border-rose-500/40 rounded-xl text-center space-y-3">
+          <div className="text-3xl mb-1">✕</div>
           <h3 className="text-lg font-bold text-rose-300">AutoML Training Run Failed</h3>
-          <p className="text-sm text-slate-400 mt-1">
-            {runDetails.status.error_message || 'An unexpected error occurred during model fitting.'}
+          <p className="text-sm text-slate-400">
+            The training or evaluation process encountered an issue and did not complete.
           </p>
+          <div className="max-w-xl mx-auto space-y-2 text-xs text-slate-300 bg-slate-900/60 p-3.5 rounded-lg border border-rose-500/20 text-left font-mono">
+            <div><span className="text-slate-500">Run ID:</span> <span className="text-indigo-300">{activeRunId || runStatus?.run_id || 'Unknown'}</span></div>
+            <div><span className="text-slate-500">Failed Stage:</span> <span className="text-amber-300">{runStatus?.current_stage || runDetails?.status?.current_stage || 'Evaluation'}</span></div>
+            <div><span className="text-slate-500">Reason:</span> <span className="text-rose-400">{
+              (() => {
+                const msg = runStatus?.error_message || runDetails?.status?.error_message;
+                if (!msg) return 'An unexpected error occurred during execution.';
+                if (msg.includes('Traceback')) {
+                  const lines = msg.split('\n').map(l => l.trim()).filter(Boolean);
+                  return lines[lines.length - 1];
+                }
+                return msg;
+              })()
+            }</span></div>
+          </div>
+          <div>
+            <button
+              onClick={() => {
+                setActiveRunId(null);
+                setRunStatus(null);
+                setRunDetails(null);
+              }}
+              className="mt-2 px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-bold transition-all shadow-md"
+            >
+              Configure New Training Run
+            </button>
+          </div>
         </div>
       )}
 

@@ -57,18 +57,42 @@ def select_default_primary_metric(
         return "rmse"
     return "f1" if "classification" in p_type else "rmse"
 
+from app.core.errors import EvaluationError
+
 def compute_metrics(
     problem_type: str,
     y_true: np.ndarray,
     y_pred: np.ndarray,
-    y_prob: Optional[np.ndarray] = None
+    y_prob: Optional[np.ndarray] = None,
+    partition: Optional[str] = None,
+    run_id: Optional[str] = None,
+    model_name: Optional[str] = None
 ) -> Dict[str, float]:
     """
     Calculate appropriate evaluation metrics for predictions.
     Safely ignores mathematically invalid metrics (e.g., MAPE with 0s).
+    Strictly validates that prediction array and target array have identical length.
     """
-    y_t = np.asarray(y_true)
-    y_p = np.asarray(y_pred)
+    y_t = np.asarray(y_true).ravel()
+    y_p = np.asarray(y_pred).ravel()
+
+    # Invariant: y_true and y_pred must have identical length
+    if len(y_t) != len(y_p):
+        part_str = f" for partition '{partition}'" if partition else ""
+        run_str = f" (run_id={run_id})" if run_id else ""
+        mod_str = f" (model={model_name})" if model_name else ""
+        raise EvaluationError(
+            f"Prediction/target length mismatch{part_str}{run_str}{mod_str}: "
+            f"expected {len(y_t)} samples, but got {len(y_p)} predictions.",
+            details={
+                "partition": partition,
+                "run_id": run_id,
+                "model_name": model_name,
+                "expected_length": len(y_t),
+                "actual_length": len(y_p)
+            }
+        )
+
     res: Dict[str, float] = {}
 
     p_type = problem_type.lower().strip()

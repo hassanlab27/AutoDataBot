@@ -77,11 +77,32 @@ def evaluate_regression(
         "explained_variance": exp_var
     }
 
-    # Safe MAPE calculation (only valid if no target values are near zero)
+    # Safe MAPE and Tolerance Accuracy calculation (percentage of predictions within 10% / 20% margin)
+    nonzero_mask = np.abs(y_t) > 1e-5
+    if np.any(nonzero_mask):
+        rel_errors = np.abs((y_t[nonzero_mask] - y_p[nonzero_mask]) / y_t[nonzero_mask])
+        acc_10 = round(float(np.mean(rel_errors <= 0.10) * 100.0), 1)
+        acc_20 = round(float(np.mean(rel_errors <= 0.20) * 100.0), 1)
+    else:
+        # Fallback based on MAE relative to target standard deviation
+        y_std = np.std(y_t) if np.std(y_t) > 1e-5 else 1.0
+        acc_10 = round(float(np.mean(np.abs(y_t - y_p) <= (0.10 * y_std)) * 100.0), 1)
+        acc_20 = round(float(np.mean(np.abs(y_t - y_p) <= (0.20 * y_std)) * 100.0), 1)
+
+    r2_pct = round(float(max(0.0, min(1.0, r2)) * 100.0), 1)
+    metrics_summary["accuracy_within_10_pct"] = acc_10
+    metrics_summary["accuracy_within_20_pct"] = acc_20
+    metrics_summary["r2_pct"] = r2_pct
+    metrics_summary["human_summary"] = (
+        f"The model explains {r2_pct}% of target variance with an average margin of error of ±{mae:.2f}. "
+        f"{acc_10}% of test predictions fall within a 10% tolerance margin."
+    )
+
     if not np.any(np.isclose(y_t, 0.0, atol=1e-5)):
         try:
             mape = round(float(mean_absolute_percentage_error(y_t, y_p)), 4)
             metrics_summary["mape"] = mape
+            metrics_summary["mape_pct"] = round(float(mape * 100.0), 1)
         except Exception:
             pass
 
@@ -161,6 +182,15 @@ def evaluate_regression(
     return {
         "problem_type": "regression",
         "metrics": metrics_summary,
+        "r2_pct": f"{r2_pct:.1f}%",
+        "accuracy_within_10_pct": acc_10,
+        "accuracy_within_20_pct": acc_20,
+        "human_summary": {
+            "r2_explained": f"{r2_pct:.1f}% variance explained",
+            "average_error_mae": f"±{mae:.2f}",
+            "accuracy_within_10_pct": f"{acc_10:.1f}%",
+            "accuracy_within_20_pct": f"{acc_20:.1f}%"
+        },
         "residual_stats": {
             "mean": mean_res,
             "median": median_res,

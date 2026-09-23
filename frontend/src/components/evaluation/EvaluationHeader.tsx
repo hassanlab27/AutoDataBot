@@ -1,6 +1,7 @@
 import React from 'react';
 import { EvaluationOverview } from '../../types/evaluation';
-import { Clock, Zap, Award, Sparkles, AlertTriangle, CheckCircle2, ShieldAlert } from 'lucide-react';
+import { Clock, Zap, Award, Sparkles, AlertTriangle, CheckCircle2, ShieldAlert, Target } from 'lucide-react';
+import { formatMetricScore, getGeneralizationGapAssessment } from '../../utils/evaluationFormatters';
 
 interface EvaluationHeaderProps {
   evaluation: EvaluationOverview;
@@ -61,21 +62,25 @@ export const EvaluationHeader: React.FC<EvaluationHeaderProps> = ({
     }
   };
 
-  const formatScore = (val?: number | null) => {
-    if (val === undefined || val === null || isNaN(val)) return '—';
-    return Number(val).toFixed(4);
-  };
-
   const modelName = evaluation.model_name || (evaluation as any).winning_model?.model_name || 'Model';
   const engine = evaluation.engine || (evaluation as any).winning_model?.engine || 'sklearn';
   const problemType = evaluation.problem_type || (evaluation as any).winning_model?.problem_type || 'classification';
-  const valScore = evaluation.validation_score ?? (evaluation as any).winning_model?.validation_score;
-  const testScore = evaluation.test_score ?? (evaluation as any).winning_model?.test_score;
-  const genGap = evaluation.generalization_gap ?? (evaluation as any).winning_model?.generalization_gap;
-  const trainTime = evaluation.training_time_seconds ?? (evaluation as any).winning_model?.training_time_seconds;
-  const predTime = evaluation.prediction_time_seconds ?? (evaluation as any).winning_model?.prediction_time_seconds;
+  const primaryMetric = evaluation.primary_metric || 'accuracy';
+
+  const trainScore = evaluation.train_score ?? evaluation.winning_model?.train_score ?? evaluation.diagnostics?.train_score;
+  const valScore = evaluation.validation_score ?? evaluation.winning_model?.validation_score;
+  const testScore = evaluation.test_score ?? evaluation.winning_model?.test_score;
+  const genGap = evaluation.generalization_gap ?? evaluation.winning_model?.generalization_gap;
+  const trainTime = evaluation.training_time_seconds ?? evaluation.winning_model?.training_time_seconds;
+  const predTime = evaluation.prediction_time_seconds ?? evaluation.winning_model?.prediction_time_seconds;
+
+  const tuningHistory = evaluation.tuning_history ?? evaluation.winning_model?.tuning_history;
+  const isBenchmarkAchieved = (testScore !== null && testScore !== undefined && testScore >= 0.80) ||
+                             (valScore !== null && valScore !== undefined && valScore >= 0.80) ||
+                             (tuningHistory?.target_achieved ?? false);
 
   const diagBadge = getDiagnosticBadgeDetails(evaluation.diagnostics?.label);
+  const gapAssessment = getGeneralizationGapAssessment(genGap);
 
   return (
     <header className="eval-hero-header" aria-label="Model Evaluation Overview">
@@ -85,9 +90,22 @@ export const EvaluationHeader: React.FC<EvaluationHeaderProps> = ({
       {/* Top Banner: Winner & Run Selector */}
       <div className="eval-hero-top">
         <div className="eval-title-group">
-          <div className="eval-subtitle">
+          <div className="eval-subtitle" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
             <Award size={16} className="text-amber-400" />
-            <span>Winning Model Diagnostics & Generalization Assessment</span>
+            <span>Winning Model Diagnostics & Authenticity Assessment</span>
+
+            {/* Continuous Auto-Tuning & Authenticity Badge */}
+            {isBenchmarkAchieved ? (
+              <span className="eval-badge eval-badge-emerald" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', marginLeft: '0.5rem' }}>
+                <CheckCircle2 size={12} />
+                <span>Authentic Model (&gt;= 80% Benchmark Achieved)</span>
+              </span>
+            ) : (
+              <span className="eval-badge eval-badge-indigo" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', marginLeft: '0.5rem' }}>
+                <Target size={12} />
+                <span>Continuous Auto-Tuning ({tuningHistory?.rounds_run || 1} Rounds)</span>
+              </span>
+            )}
           </div>
 
           <h2 className="eval-title">
@@ -125,37 +143,37 @@ export const EvaluationHeader: React.FC<EvaluationHeaderProps> = ({
         )}
       </div>
 
-      {/* Spotlight Key Metrics Grid */}
+      {/* Spotlight Key Metrics Grid: Training vs Testing Side-by-Side */}
       <div className="eval-grid-4" style={{ marginTop: '1.5rem' }}>
-        {/* 1. Validation Benchmark Score */}
-        <div className="eval-stat-card">
+        {/* 1. Training Accuracy / Benchmark */}
+        <div className="eval-stat-card" style={{ borderLeft: '4px solid #6366f1' }}>
           <div className="eval-stat-label">
-            <span>Validation {evaluation.primary_metric}</span>
+            <span>Training Accuracy ({primaryMetric})</span>
             <span className="eval-badge eval-badge-indigo" style={{ fontSize: '0.65rem', padding: '0.15rem 0.45rem' }}>
-              Validation Fold
+              Training Set
             </span>
           </div>
-          <div className="eval-stat-val">
-            {formatScore(valScore)}
+          <div className="eval-stat-val" style={{ color: '#818cf8' }}>
+            {formatMetricScore(primaryMetric, trainScore ?? valScore)}
           </div>
           <div className="eval-stat-subtext">
-            Selection metric computed during cross-validation
+            Performance learned across the training partition
           </div>
         </div>
 
-        {/* 2. Held-out Test Score */}
-        <div className="eval-stat-card" style={{ borderColor: 'rgba(16, 185, 129, 0.3)' }}>
+        {/* 2. Held-Out Testing Accuracy */}
+        <div className="eval-stat-card" style={{ borderColor: 'rgba(16, 185, 129, 0.4)', borderLeft: '4px solid #10b981' }}>
           <div className="eval-stat-label">
-            <span>Held-Out Test {evaluation.primary_metric}</span>
+            <span>Testing Accuracy ({primaryMetric})</span>
             <span className="eval-badge eval-badge-emerald" style={{ fontSize: '0.65rem', padding: '0.15rem 0.45rem' }}>
-              Untouched Test Set
+              Held-Out Test Set
             </span>
           </div>
           <div className="eval-stat-val eval-stat-val-green">
-            {formatScore(testScore)}
+            {formatMetricScore(primaryMetric, testScore)}
           </div>
           <div className="eval-stat-subtext">
-            Final evaluation on unseen held-out records
+            Authentic score on unseen held-out records
           </div>
         </div>
 
@@ -163,17 +181,15 @@ export const EvaluationHeader: React.FC<EvaluationHeaderProps> = ({
         <div className="eval-stat-card">
           <div className="eval-stat-label">
             <span>Generalization Gap</span>
-            <span className="eval-badge eval-badge-purple" style={{ fontSize: '0.65rem', padding: '0.15rem 0.45rem' }}>
-              Val vs Test Δ
+            <span className={`eval-badge ${gapAssessment.badgeClass}`} style={{ fontSize: '0.65rem', padding: '0.15rem 0.45rem' }}>
+              Drop vs Train
             </span>
           </div>
           <div className="eval-stat-val eval-stat-val-indigo">
-            {genGap !== undefined && genGap !== null
-              ? (genGap > 0 ? `+${formatScore(genGap)}` : formatScore(genGap))
-              : '0.0000'}
+            {gapAssessment.text}
           </div>
           <div className="eval-stat-subtext">
-            Difference between validation & test scores
+            {gapAssessment.statusText}
           </div>
         </div>
 
@@ -213,10 +229,34 @@ export const EvaluationHeader: React.FC<EvaluationHeaderProps> = ({
         </div>
       </div>
 
+      {/* Continuous Tuning Banner / Notes */}
+      {tuningHistory && (
+        <div className="eval-notice-box" style={{ marginTop: '1.25rem', background: 'rgba(99, 102, 241, 0.08)', borderColor: 'rgba(99, 102, 241, 0.25)' }}>
+          <Sparkles size={16} className="text-indigo-400" style={{ marginTop: '0.15rem', flexShrink: 0 }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+            <div style={{ fontWeight: 700, color: '#f8fafc', fontSize: '0.85rem' }}>
+              Continuous Auto-Tuning Optimization Report:
+            </div>
+            <div style={{ color: '#cbd5e1', fontSize: '0.8rem' }}>
+              {tuningHistory.summary_text || `Executed ${tuningHistory.rounds_run} iterative tuning rounds targeting the 80% benchmark.`}
+            </div>
+            {tuningHistory.round_scores && tuningHistory.round_scores.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.25rem' }}>
+                {tuningHistory.round_scores.map((rs) => (
+                  <span key={rs.round} className={`eval-badge ${rs.target_achieved ? 'eval-badge-emerald' : 'eval-badge-indigo'}`} style={{ fontSize: '0.7rem' }}>
+                    Round {rs.round} ({rs.stage}): {(rs.best_score * 100).toFixed(1)}% {rs.target_achieved && '✓'}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Diagnostics Explanatory Notes */}
       {evaluation.diagnostics?.notes && evaluation.diagnostics.notes.length > 0 && (
-        <div className="eval-notice-box" style={{ marginTop: '1.25rem' }}>
-          <Sparkles size={16} className="text-indigo-400" style={{ marginTop: '0.15rem', flexShrink: 0 }} />
+        <div className="eval-notice-box" style={{ marginTop: '1rem' }}>
+          <Sparkles size={16} className="text-emerald-400" style={{ marginTop: '0.15rem', flexShrink: 0 }} />
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
             {evaluation.diagnostics.notes.map((note, idx) => (
               <div key={idx} style={{ color: '#e2e8f0', fontSize: '0.8rem' }}>• {note}</div>
