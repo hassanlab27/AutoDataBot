@@ -14,13 +14,11 @@ import { BarChart3, AlertOctagon, Brain, GitCompare, RefreshCw, AlertCircle } fr
 interface EvaluationDashboardProps {
   datasetId: string;
   initialRunId?: string | null;
-  onNavigateToReport?: (runId: string) => void;
 }
 
 export const EvaluationDashboard: React.FC<EvaluationDashboardProps> = ({
   datasetId,
-  initialRunId,
-  onNavigateToReport
+  initialRunId
 }) => {
   const [runs, setRuns] = useState<any[]>([]);
   const [activeRunId, setActiveRunId] = useState<string | null>(initialRunId || null);
@@ -146,7 +144,6 @@ export const EvaluationDashboard: React.FC<EvaluationDashboardProps> = ({
           runs={runs}
           activeRunId={activeRunId!}
           onSelectRun={(rId) => setActiveRunId(rId)}
-          onNavigateToReport={onNavigateToReport}
         />
       </ErrorBoundary>
 

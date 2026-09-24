@@ -13,7 +13,6 @@ from app.api.routes.preprocessing import router as preprocessing_router
 from app.api.routes.runs import router as runs_router
 from app.api.routes.evaluation import router as evaluation_router
 from app.api.routes.explainability import router as explainability_router
-from app.api.routes.reports import router as reports_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -73,7 +72,6 @@ app.include_router(preprocessing_router, prefix=settings.API_PREFIX)
 app.include_router(runs_router, prefix=settings.API_PREFIX)
 app.include_router(evaluation_router, prefix=settings.API_PREFIX)
 app.include_router(explainability_router, prefix=settings.API_PREFIX)
-app.include_router(reports_router, prefix=settings.API_PREFIX)
 
 @app.get("/")
 def root():
