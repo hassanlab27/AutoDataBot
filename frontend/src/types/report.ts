@@ -27,6 +27,6 @@ export interface RunSummaryData {
   train_score?: number | null;
   primary_metric?: string;
   duration_seconds?: number;
-  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  status: 'created' | 'queued' | 'running' | 'evaluating' | 'completed' | 'failed' | 'cancelled' | string;
   created_at?: string;
 }
