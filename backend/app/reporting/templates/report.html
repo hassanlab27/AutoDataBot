@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutoDataBot Analysis & Model Report — {{ executive_summary.run_id }}</title>
+    <style>
+        {{ embedded_css | safe }}
+    </style>
+</head>
+<body>
+
+    <!-- Header & Identification -->
+    <header class="report-header">
+        <div class="report-title-area">
+            <h1>AutoDataBot Technical Report</h1>
+            <div class="report-subtitle">Automated Data Analysis, Preprocessing & AutoML Model Verification</div>
+        </div>
+        <div class="report-meta-box">
+            <div><strong>Report Schema:</strong> v{{ report_version }}</div>
+            <div><strong>Generated:</strong> {{ created_at }}</div>
+            <div><strong>Run ID:</strong> <code>{{ run_id }}</code></div>
+            <div><strong>Dataset ID:</strong> <code>{{ dataset_id }}</code></div>
+        </div>
+    </header>
+
+    <!-- 1. Executive Summary -->
+    <section class="report-section" id="executive-summary">
+        <div class="section-title">
+            <span>1. Executive Summary</span>
+            <span class="badge badge-winner">{{ selected_model.model_name }}</span>
+        </div>
+        <p class="section-subtitle">High-level synthesis of dataset attributes, best performing model, and test verification.</p>
+        
+        <div class="grid-4" style="margin-bottom: 1rem;">
+            <div class="stat-card">
+                <div class="stat-label">Dataset / Rows</div>
+                <div class="stat-value">{{ executive_summary.rows_count | format_number }}</div>
+                <div class="stat-subtext">{{ executive_summary.dataset_name }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Target / Problem</div>
+                <div class="stat-value" style="font-size: 11pt; margin-top: 0.2rem;">{{ executive_summary.target }}</div>
+                <div class="stat-subtext">{{ executive_summary.problem_type | replace('_', ' ') | title }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Holdout Validation</div>
+                <div class="stat-value">{{ executive_summary.validation_metric | format_metric }}</div>
+                <div class="stat-subtext">Metric: {{ executive_summary.primary_metric }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Final Test Score</div>
+                <div class="stat-value">{{ executive_summary.test_metric | format_metric }}</div>
+                <div class="stat-subtext">Isolated holdout partition</div>
+            </div>
+        </div>
+
+        <div class="callout">
+            <strong>Run Summary:</strong> The automated machine learning pipeline evaluated 
+            <strong>{{ training_config.total_models_trained }}</strong> candidate models across 
+            <strong>{{ preprocessing.split.train_rows | format_number }}</strong> training records. 
+            <strong>{{ selected_model.model_name }}</strong> ({{ selected_model.engine }}) achieved the highest validation score 
+            (<strong>{{ executive_summary.validation_metric | format_metric }}</strong>) and was evaluated against an untouched external test set of 
+            <strong>{{ preprocessing.split.test_rows | format_number }}</strong> records, yielding a test score of 
+            <strong>{{ executive_summary.test_metric | format_metric }}</strong>.
+        </div>
+    </section>
+
+    <!-- 2. Dataset Overview -->
+    <section class="report-section" id="dataset-overview">
+        <div class="section-title">
+            <span>2. Dataset Overview</span>
+        </div>
+        <table class="report-table">
+            <thead>
+                <tr>
+                    <th>Attribute</th>
+                    <th>Observed Value</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Dataset Source</strong></td>
+                    <td>{{ dataset_overview.original_filename }}</td>
+                    <td>Original uploaded file designation</td>
+                </tr>
+                <tr>
+                    <td><strong>Dimensions</strong></td>
+                    <td>{{ dataset_overview.rows_count | format_number }} rows &times; {{ dataset_overview.columns_count }} columns</td>
+                    <td>Total ingested shape</td>
+                </tr>
+                <tr>
+                    <td><strong>File Size</strong></td>
+                    <td>{{ dataset_overview.file_size_mb }} MB</td>
+                    <td>Raw byte size prior to normalization</td>
+                </tr>
+                <tr>
+                    <td><strong>Encoding & Delimiter</strong></td>
+                    <td>{{ dataset_overview.encoding_used }} / "{{ dataset_overview.delimiter_used }}"</td>
+                    <td>Auto-detected parsing configuration</td>
+                </tr>
+                <tr>
+                    <td><strong>Numeric Columns</strong></td>
+                    <td>{{ dataset_overview.numeric_features_count }}</td>
+                    <td>Integer and floating point continuous features</td>
+                </tr>
+                <tr>
+                    <td><strong>Categorical Columns</strong></td>
+                    <td>{{ dataset_overview.categorical_features_count }}</td>
+                    <td>Discrete nominal and ordinal text features</td>
+                </tr>
+                <tr>
+                    <td><strong>Date / Time Columns</strong></td>
+                    <td>{{ dataset_overview.datetime_features_count }}</td>
+                    <td>Temporal features extracted during preprocessing</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- 3. Data Quality Assessment -->
+    <section class="report-section" id="data-quality">
+        <div class="section-title">
+            <span>3. Data Quality</span>
+        </div>
+        <p class="section-subtitle">Ingestion audit results, missing value analysis, and integrity indicators.</p>
+
+        {% if data_quality.quality_warnings and data_quality.quality_warnings|length > 0 %}
+        <div class="callout callout-warning">
+            <strong>Quality Notices / Warnings:</strong>
+            <ul style="margin-left: 1.2rem; margin-top: 0.3rem;">
+                {% for w in data_quality.quality_warnings %}
+                <li>{{ w }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% else %}
+        <div class="callout">
+            <strong>Data Quality Verification:</strong> No critical anomalies or structural data integrity issues detected during preliminary dataset audit.
+        </div>
+        {% endif %}
+    </section>
+
+    <!-- 4. Exploratory Data Analysis -->
+    <section class="report-section" id="eda">
+        <div class="section-title">
+            <span>4. Exploratory Data Analysis (EDA)</span>
+        </div>
+        <p class="section-subtitle">Statistical characterization of target and feature distributions.</p>
+
+        <div class="grid-2">
+            <div class="stat-card">
+                <div class="stat-label">Target Variable Distribution</div>
+                <div style="margin-top: 0.5rem; font-size: 8.5pt;">
+                    {% if target_problem.class_counts %}
+                    <table class="report-table" style="margin: 0;">
+                        <thead>
+                            <tr><th>Class / Level</th><th>Count</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for cls, cnt in target_problem.class_counts.items() %}
+                            <tr><td><code>{{ cls }}</code></td><td>{{ cnt | format_number }}</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% elif target_problem.target_stats %}
+                    <div style="font-size: 8.5pt; line-height: 1.6;">
+                        <div><strong>Mean:</strong> {{ target_problem.target_stats.mean | format_metric }}</div>
+                        <div><strong>Std Dev:</strong> {{ target_problem.target_stats.std | format_metric }}</div>
+                        <div><strong>Min:</strong> {{ target_problem.target_stats.min | format_metric }}</div>
+                        <div><strong>Max:</strong> {{ target_problem.target_stats.max | format_metric }}</div>
+                    </div>
+                    {% else %}
+                    <p style="color: var(--text-muted);">Distribution summary recorded in evaluation partition metrics.</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-label">Feature Overview</div>
+                <div style="margin-top: 0.5rem; font-size: 8.5pt; line-height: 1.6;">
+                    <div><strong>Continuous Numeric:</strong> {{ eda.numeric_features_count }} features</div>
+                    <div><strong>Categorical:</strong> {{ eda.categorical_features_count }} features</div>
+                    <div><strong>Target Problem Class:</strong> {{ target_problem.problem_type | replace('_', ' ') | title }}</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 5. Target & Problem Definition -->
+    <section class="report-section" id="target-problem">
+        <div class="section-title">
+            <span>5. Target & Problem Definition</span>
+        </div>
+        <table class="report-table">
+            <thead>
+                <tr>
+                    <th>Component</th>
+                    <th>Specification</th>
+                    <th>Pipeline Handling</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Target Column</strong></td>
+                    <td><code>{{ target_problem.target_column }}</code></td>
+                    <td>Isolated from candidate feature space prior to transformation</td>
+                </tr>
+                <tr>
+                    <td><strong>Problem Formulation</strong></td>
+                    <td>{{ target_problem.problem_type | replace('_', ' ') | title }}</td>
+                    <td>Determines loss functions, metric evaluation, and model family selection</td>
+                </tr>
+                <tr>
+                    <td><strong>Objective Optimization</strong></td>
+                    <td>{{ training_config.primary_metric }}</td>
+                    <td>Primary criterion utilized for leaderboard ranking</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- 6. Preprocessing & Feature Engineering -->
+    <section class="report-section" id="preprocessing">
+        <div class="section-title">
+            <span>6. Preprocessing</span>
+        </div>
+        <p class="section-subtitle">Leakage-free transformation pipeline applied strictly across independent partitions.</p>
+
+        <div class="grid-3" style="margin-bottom: 0.75rem;">
+            <div class="stat-card">
+                <div class="stat-label">Raw Features</div>
+                <div class="stat-value">{{ preprocessing.original_features_count }}</div>
+                <div class="stat-subtext">Original non-target columns</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Encoded Features</div>
+                <div class="stat-value">{{ preprocessing.final_features_count }}</div>
+                <div class="stat-subtext">Post-one-hot transformation</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Train / Test Split</div>
+                <div class="stat-value">{{ preprocessing.split.train_percentage | int }}% / {{ preprocessing.split.test_percentage | int }}%</div>
+                <div class="stat-subtext">{{ preprocessing.split.train_rows | format_number }} / {{ preprocessing.split.test_rows | format_number }} rows</div>
+            </div>
+        </div>
+
+        <table class="report-table">
+            <thead>
+                <tr><th>Engine Family</th><th>Preprocessing Strategy</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>AutoGluon Tabular</strong></td>
+                    <td>{{ preprocessing.engine_strategies["AutoGluon"] }}</td>
+                </tr>
+                <tr>
+                    <td><strong>Scikit-Learn & Boosters</strong></td>
+                    <td>{{ preprocessing.engine_strategies["Scikit-Learn & Gradient Boosting"] }} (Imputation: {{ preprocessing.numeric_imputation_strategy }}, Scaler: {{ preprocessing.scaling_strategy }})</td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <!-- 7. Training Configuration -->
+    <section class="report-section" id="training-config">
+        <div class="section-title">
+            <span>7. Training Configuration</span>
+        </div>
+        <div class="grid-4" style="margin-bottom: 0.75rem;">
+            <div class="stat-card">
+                <div class="stat-label">Mode / Preset</div>
+                <div class="stat-value" style="font-size: 11pt;">{{ training_config.training_mode | title }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Engine Preference</div>
+                <div class="stat-value" style="font-size: 11pt;">{{ training_config.engine_preference | title }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Time Budget</div>
+                <div class="stat-value" style="font-size: 11pt;">{{ training_config.time_limit_seconds }}s</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Random Seed</div>
+                <div class="stat-value" style="font-size: 11pt;">{{ training_config.random_state }}</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- 8. Model Leaderboard -->
+    <section class="report-section" id="leaderboard">
+        <div class="section-title">
+            <span>8. Model Leaderboard</span>
+        </div>
+        <p class="section-subtitle">Ranked strictly by holdout validation metric performance.</p>
+
+        <table class="report-table">
+            <thead>
+                <tr>
+                    <th style="width: 50px;">Rank</th>
+                    <th>Model</th>
+                    <th>Engine</th>
+                    <th>Validation ({{ training_config.primary_metric }})</th>
+                    <th>Training Score</th>
+                    <th>Test Score</th>
+                    <th>Training Time</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in leaderboard %}
+                <tr class="{% if m.model_name == selected_model.model_name %}winner-row{% endif %}">
+                    <td><strong>#{{ m.rank }}</strong></td>
+                    <td>
+                        {{ m.model_name }}
+                        {% if m.model_name == selected_model.model_name %}
+                        <span class="badge badge-winner" style="margin-left: 4px;">Selected Winner</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ m.engine }}</td>
+                    <td><strong>{{ m.validation_score | format_metric }}</strong></td>
+                    <td>{{ m.train_score | format_metric }}</td>
+                    <td>{{ m.test_score | format_metric }}</td>
+                    <td>{% if m.training_time %}{{ m.training_time }}s{% else %}&mdash;{% endif %}</td>
+                    <td>
+                        {% if m.status == 'success' %}
+                        <span class="badge badge-success">Success</span>
+                        {% else %}
+                        <span class="badge badge-failed">Failed</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+
+    <!-- 9. Selected Model -->
+    <section class="report-section" id="selected-model">
+        <div class="section-title">
+            <span>9. Selected Model</span>
+            <span class="badge badge-winner">{{ selected_model.model_name }}</span>
+        </div>
+        <div class="grid-3" style="margin-bottom: 0.75rem;">
+            <div class="stat-card">
+                <div class="stat-label">Selected Model</div>
+                <div class="stat-value" style="font-size: 12pt;">{{ selected_model.model_name }}</div>
+                <div class="stat-subtext">Engine: {{ selected_model.engine }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Validation Performance</div>
+                <div class="stat-value">{{ selected_model.validation_score | format_metric }}</div>
+                <div class="stat-subtext">Metric: {{ selected_model.selection_metric }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Generalization Gap</div>
+                <div class="stat-value">{{ diagnostics.generalization_gap | format_metric }}</div>
+                <div class="stat-subtext">Val vs Test divergence</div>
+            </div>
+        </div>
+        <div class="callout">
+            {{ selected_model.selection_rationale }}
+        </div>
+    </section>
+
+    <!-- 10. Evaluation Section -->
+    <section class="report-section" id="evaluation">
+        <div class="section-title">
+            <span>10. Evaluation & Performance</span>
+        </div>
+        <p class="section-subtitle">Empirical validation and holdout test metrics for the selected model.</p>
+
+        <div class="grid-4" style="margin-bottom: 1rem;">
+            {% for metric_k, metric_v in evaluation.metrics.items() %}
+            {% if not metric_k.endswith('_pct') and not metric_k == 'human_summary' and metric_v is number %}
+            <div class="stat-card">
+                <div class="stat-label">{{ metric_k | format_metric_name }}</div>
+                <div class="stat-value">{{ metric_v | format_metric }}</div>
+                <div class="stat-subtext">Test Partition</div>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+
+        {% if evaluation.confusion_matrix %}
+        <div style="margin-top: 1rem;">
+            <h4 style="font-size: 10pt; font-weight: 700; margin-bottom: 0.4rem;">Confusion Matrix (Test Partition)</h4>
+            <table class="report-table" style="max-width: 450px;">
+                <thead>
+                    <tr>
+                        <th>Actual \ Predicted</th>
+                        {% for lbl in evaluation.confusion_matrix.labels %}
+                        <th>{{ lbl }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in evaluation.confusion_matrix.matrix %}
+                    <tr>
+                        <td><strong>{{ evaluation.confusion_matrix.labels[loop.index0] }}</strong></td>
+                        {% for cell in row %}
+                        <td>{{ cell }}</td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        {% if evaluation.residual_stats %}
+        <div style="margin-top: 1rem;">
+            <h4 style="font-size: 10pt; font-weight: 700; margin-bottom: 0.4rem;">Residual Statistics</h4>
+            <div class="grid-4">
+                <div class="stat-card">
+                    <div class="stat-label">Mean Residual</div>
+                    <div class="stat-value">{{ evaluation.residual_stats.mean | format_metric }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Median Residual</div>
+                    <div class="stat-value">{{ evaluation.residual_stats.median | format_metric }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Residual Std Dev</div>
+                    <div class="stat-value">{{ evaluation.residual_stats.std | format_metric }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Residual IQR</div>
+                    <div class="stat-value">{{ evaluation.residual_stats.iqr | format_metric }}</div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </section>
+
+    <!-- 11. Generalization & Diagnostics -->
+    <section class="report-section" id="diagnostics">
+        <div class="section-title">
+            <span>11. Generalization & Diagnostics</span>
+            <span class="badge {% if diagnostics.diagnostic_label == 'Normal / Well-fit' %}badge-success{% else %}badge-warning{% endif %}">
+                {{ diagnostics.diagnostic_label }}
+            </span>
+        </div>
+        <div class="grid-3" style="margin-bottom: 0.75rem;">
+            <div class="stat-card">
+                <div class="stat-label">Validation Score</div>
+                <div class="stat-value">{{ diagnostics.validation_score | format_metric }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Test Score</div>
+                <div class="stat-value">{{ diagnostics.test_score | format_metric }}</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Observed Gap</div>
+                <div class="stat-value">{{ diagnostics.generalization_gap | format_metric }}</div>
+            </div>
+        </div>
+
+        {% if diagnostics.diagnostic_notes and diagnostics.diagnostic_notes|length > 0 %}
+        <ul class="bullet-list" style="margin-bottom: 0.75rem;">
+            {% for note in diagnostics.diagnostic_notes %}
+            <li>{{ note }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+
+        <div class="callout callout-disclaimer">
+            {{ diagnostics.disclaimer }}
+        </div>
+    </section>
+
+    <!-- 12. Error Analysis -->
+    <section class="report-section" id="error-analysis">
+        <div class="section-title">
+            <span>12. Error Analysis</span>
+        </div>
+        <p class="section-subtitle">Examination of prediction residuals and high-discrepancy holdout test samples.</p>
+
+        {% if error_analysis.top_worst_predictions and error_analysis.top_worst_predictions|length > 0 %}
+        <table class="report-table">
+            <thead>
+                <tr>
+                    <th>Sample Index</th>
+                    <th>Actual Value</th>
+                    <th>Predicted Value</th>
+                    <th>Discrepancy / Error</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for err in error_analysis.top_worst_predictions %}
+                <tr>
+                    <td><code>#{{ err.row_index if err.row_index is defined else loop.index }}</code></td>
+                    <td>{{ err.actual if err.actual is defined else err.actual_label }}</td>
+                    <td>{{ err.predicted if err.predicted is defined else err.predicted_label }}</td>
+                    <td><strong>{{ err.error | format_metric if err.error is defined else err.confidence | format_metric }}</strong></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color: var(--text-muted); font-size: 8.5pt;">Error records summarized directly in confusion matrix and residuals.</p>
+        {% endif %}
+    </section>
+
+    <!-- 13. Feature Importance -->
+    <section class="report-section" id="feature-importance">
+        <div class="section-title">
+            <span>13. Feature Importance</span>
+        </div>
+        <p class="section-subtitle">Native model weights and permutation importance on the holdout validation partition.</p>
+
+        {% if feature_importance.native and feature_importance.native|length > 0 %}
+        <h4 style="font-size: 9.5pt; font-weight: 700; margin-bottom: 0.4rem;">Top Model Features</h4>
+        <table class="report-table">
+            <thead>
+                <tr>
+                    <th style="width: 50px;">Rank</th>
+                    <th>Feature Name</th>
+                    <th>Relative Importance</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for f in feature_importance.native %}
+                <tr>
+                    <td><strong>#{{ loop.index }}</strong></td>
+                    <td><code>{{ f.feature if f.feature is defined else f.name }}</code></td>
+                    <td>{{ f.importance | format_metric if f.importance is defined else f.score | format_metric }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p style="color: var(--text-muted); font-size: 8.5pt;">Native feature importance is specific to tree-based and linear models.</p>
+        {% endif %}
+
+        <div class="callout callout-disclaimer">
+            {{ feature_importance.note }}
+        </div>
+    </section>
+
+    <!-- 14. SHAP Explainability -->
+    <section class="report-section" id="shap">
+        <div class="section-title">
+            <span>14. SHAP</span>
+            {% if shap.available %}
+            <span class="badge badge-success">SHAP Available</span>
+            {% else %}
+            <span class="badge badge-warning">SHAP Summary Unavailable</span>
+            {% endif %}
+        </div>
+        <p class="section-subtitle">Local game-theoretic Shapley additive feature attributions.</p>
+
+        {% if shap.available and shap.global_importance and shap.global_importance|length > 0 %}
+        <table class="report-table">
+            <thead>
+                <tr>
+                    <th style="width: 50px;">Rank</th>
+                    <th>Feature</th>
+                    <th>Mean |SHAP Value|</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in shap.global_importance %}
+                <tr>
+                    <td><strong>#{{ loop.index }}</strong></td>
+                    <td><code>{{ s.feature }}</code></td>
+                    <td><strong>{{ s.importance | format_metric }}</strong></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="callout">
+            <em>{{ shap.reason if shap.reason else "SHAP explainer was not computed for this run architecture." }}</em>
+        </div>
+        {% endif %}
+
+        <div class="callout callout-disclaimer">
+            {{ shap.methodological_note }}
+        </div>
+    </section>
+
+    <!-- 15. Limitations & Assumptions -->
+    <section class="report-section" id="limitations">
+        <div class="section-title">
+            <span>15. Limitations & Assumptions</span>
+        </div>
+        <p class="section-subtitle">Factual boundaries and methodological constraints governing this analysis.</p>
+
+        <ul class="bullet-list">
+            {% for item in limitations %}
+            <li>{{ item }}</li>
+            {% endfor %}
+        </ul>
+    </section>
+
+</body>
+</html>

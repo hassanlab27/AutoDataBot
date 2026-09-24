@@ -1,0 +1,281 @@
+/* AutoDataBot Technical Report Stylesheet */
+@page {
+    size: A4 portrait;
+    margin: 1.6cm 1.4cm 1.8cm 1.4cm;
+    @bottom-right {
+        content: "Page " counter(page) " of " counter(pages);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        font-size: 8pt;
+        color: #718096;
+    }
+    @bottom-left {
+        content: "AutoDataBot Automated Machine Learning Report";
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        font-size: 8pt;
+        color: #718096;
+    }
+}
+
+:root {
+    --primary: #4f46e5;
+    --primary-dark: #3730a3;
+    --secondary: #0ea5e9;
+    --text-main: #1e293b;
+    --text-muted: #64748b;
+    --bg-main: #ffffff;
+    --bg-card: #f8fafc;
+    --border-color: #e2e8f0;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #ef4444;
+    --badge-bg: #e0e7ff;
+    --badge-text: #3730a3;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: var(--text-main);
+    background-color: var(--bg-main);
+    line-height: 1.5;
+    font-size: 10pt;
+    padding: 2rem;
+    max-width: 1050px;
+    margin: 0 auto;
+}
+
+/* Header & Metadata */
+.report-header {
+    border-bottom: 2px solid var(--primary);
+    padding-bottom: 1.25rem;
+    margin-bottom: 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.report-title-area h1 {
+    font-size: 20pt;
+    font-weight: 800;
+    color: var(--text-main);
+    letter-spacing: -0.02em;
+    margin-bottom: 0.25rem;
+}
+
+.report-subtitle {
+    font-size: 11pt;
+    color: var(--text-muted);
+}
+
+.report-meta-box {
+    text-align: right;
+    font-size: 8.5pt;
+    color: var(--text-muted);
+    line-height: 1.4;
+}
+
+/* Section Containers */
+.report-section {
+    margin-bottom: 2.2rem;
+    page-break-inside: avoid;
+}
+
+.section-title {
+    font-size: 13pt;
+    font-weight: 700;
+    color: var(--text-main);
+    border-left: 4px solid var(--primary);
+    padding-left: 0.6rem;
+    margin-bottom: 0.9rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.section-subtitle {
+    font-size: 9pt;
+    color: var(--text-muted);
+    margin-top: -0.5rem;
+    margin-bottom: 0.9rem;
+}
+
+/* Grids & Cards */
+.grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.grid-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1rem;
+}
+
+.grid-4 {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.75rem;
+}
+
+.stat-card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 0.85rem 1rem;
+    page-break-inside: avoid;
+}
+
+.stat-label {
+    font-size: 8pt;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-bottom: 0.25rem;
+}
+
+.stat-value {
+    font-size: 14pt;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.stat-subtext {
+    font-size: 8pt;
+    color: var(--text-muted);
+    margin-top: 0.15rem;
+}
+
+/* Tables */
+table.report-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 8.5pt;
+    margin: 0.75rem 0;
+    page-break-inside: avoid;
+}
+
+table.report-table th {
+    background-color: #f1f5f9;
+    color: #475569;
+    font-weight: 600;
+    text-align: left;
+    padding: 0.5rem 0.65rem;
+    border: 1px solid var(--border-color);
+}
+
+table.report-table td {
+    padding: 0.45rem 0.65rem;
+    border: 1px solid var(--border-color);
+    vertical-align: middle;
+}
+
+table.report-table tbody tr:nth-child(even) {
+    background-color: #f8fafc;
+}
+
+table.report-table tr.winner-row {
+    background-color: #eef2ff !important;
+    font-weight: 600;
+}
+
+/* Badges & Highlights */
+.badge {
+    display: inline-block;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-size: 7.5pt;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.badge-winner {
+    background-color: #dbeafe;
+    color: #1e40af;
+    border: 1px solid #bfdbfe;
+}
+
+.badge-success {
+    background-color: #dcfce7;
+    color: #166534;
+}
+
+.badge-warning {
+    background-color: #fef3c7;
+    color: #92400e;
+}
+
+.badge-failed {
+    background-color: #fee2e2;
+    color: #991b1b;
+}
+
+/* Callout Box */
+.callout {
+    background-color: #f8fafc;
+    border-left: 4px solid var(--secondary);
+    padding: 0.75rem 1rem;
+    border-radius: 0 4px 4px 0;
+    margin: 0.75rem 0;
+    font-size: 8.5pt;
+    color: #334155;
+}
+
+.callout-warning {
+    border-left-color: var(--warning);
+    background-color: #fffbeb;
+    color: #78350f;
+}
+
+.callout-disclaimer {
+    border-left-color: #94a3b8;
+    background-color: #f1f5f9;
+    color: #475569;
+    font-style: italic;
+    font-size: 8pt;
+}
+
+/* Lists */
+ul.bullet-list {
+    margin-left: 1.4rem;
+    font-size: 9pt;
+    color: var(--text-main);
+    line-height: 1.6;
+}
+
+ul.bullet-list li {
+    margin-bottom: 0.25rem;
+}
+
+/* Progress bar inside table for importances */
+.bar-track {
+    background-color: #e2e8f0;
+    border-radius: 3px;
+    height: 6px;
+    width: 100%;
+    overflow: hidden;
+    margin-top: 3px;
+}
+
+.bar-fill {
+    background-color: var(--primary);
+    height: 100%;
+    border-radius: 3px;
+}
+
+/* Print Specific Rules */
+@media print {
+    body {
+        padding: 0;
+        background: transparent;
+    }
+    .no-print {
+        display: none !important;
+    }
+}
