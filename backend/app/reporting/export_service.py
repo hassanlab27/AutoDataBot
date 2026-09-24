@@ -55,6 +55,30 @@ class ExportService:
         exp_dir.mkdir(parents=True, exist_ok=True)
         return exp_dir
 
+    @classmethod
+    def is_safe_file(cls, p: Path, allowed_root: Optional[Path] = None) -> bool:
+        if not p.is_file():
+            return False
+        if p.is_symlink():
+            try:
+                resolved = p.resolve()
+                if allowed_root and not resolved.is_relative_to(allowed_root.resolve()):
+                    return False
+            except Exception:
+                return False
+        name_lower = p.name.lower()
+        if any(name_lower.endswith(ext) for ext in EXCLUDED_EXTENSIONS):
+            return False
+        for part in p.parts:
+            if part in EXCLUDED_PATTERNS:
+                return False
+        return True
+
+    _is_safe_path = is_safe_file
+
+    def create_run_export(self, run_id: str, force_refresh: bool = False) -> Path:
+        return self.create_export_zip(run_id, force_refresh=force_refresh)
+
     def create_export_zip(self, run_id: str, force_refresh: bool = False) -> Path:
         """
         Creates a secure ZIP archive containing all verified report, metric,
@@ -101,15 +125,7 @@ class ExportService:
         files_excluded: List[str] = ["*.csv (raw datasets excluded by policy)", "logs/*", ".venv/*"]
 
         def _is_safe_file(p: Path) -> bool:
-            if not p.is_file():
-                return False
-            name_lower = p.name.lower()
-            if any(name_lower.endswith(ext) for ext in EXCLUDED_EXTENSIONS):
-                return False
-            for part in p.parts:
-                if part in EXCLUDED_PATTERNS:
-                    return False
-            return True
+            return self.is_safe_file(p, allowed_root=run_dir)
 
         # Metadata files
         summary_file = run_dir / "summary.json"
