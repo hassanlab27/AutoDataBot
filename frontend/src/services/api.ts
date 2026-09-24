@@ -301,5 +301,28 @@ export const api = {
   async getLocalExplanation(runId: string, predictionId: number): Promise<{ success: boolean; run_id: string; data: LocalExplanationResponse }> {
     const res = await fetch(`${BASE_URL}/runs/${runId}/explainability/local/${predictionId}`);
     return handleResponse<{ success: boolean; run_id: string; data: LocalExplanationResponse }>(res);
+  },
+
+  // Reporting & Export endpoints
+  async getReportHtml(runId: string, refresh: boolean = false): Promise<string> {
+    const res = await fetch(`${BASE_URL}/runs/${runId}/report?refresh=${refresh}`);
+    if (!res.ok) {
+      let errText = `HTTP error ${res.status}: ${res.statusText}`;
+      try {
+        const json = await res.json();
+        if (json.detail) errText = json.detail;
+      } catch {}
+      throw new Error(errText);
+    }
+    return res.text();
+  },
+
+  getReportPdfUrl(runId: string, refresh: boolean = false): string {
+    return `${BASE_URL}/runs/${runId}/report/pdf?refresh=${refresh}`;
+  },
+
+  getExportZipUrl(runId: string, refresh: boolean = false): string {
+    return `${BASE_URL}/runs/${runId}/export?refresh=${refresh}`;
   }
 };
+
