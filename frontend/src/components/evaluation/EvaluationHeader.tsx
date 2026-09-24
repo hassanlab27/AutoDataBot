@@ -1,6 +1,6 @@
 import React from 'react';
 import { EvaluationOverview } from '../../types/evaluation';
-import { Clock, Zap, Award, Sparkles, AlertTriangle, CheckCircle2, ShieldAlert, Target } from 'lucide-react';
+import { Clock, Zap, Award, Sparkles, AlertTriangle, CheckCircle2, ShieldAlert, Target, FileText } from 'lucide-react';
 import { formatMetricScore, getGeneralizationGapAssessment } from '../../utils/evaluationFormatters';
 
 interface EvaluationHeaderProps {
@@ -8,13 +8,15 @@ interface EvaluationHeaderProps {
   runs: any[];
   activeRunId: string;
   onSelectRun: (runId: string) => void;
+  onNavigateToReport?: (runId: string) => void;
 }
 
 export const EvaluationHeader: React.FC<EvaluationHeaderProps> = ({
   evaluation,
   runs,
   activeRunId,
-  onSelectRun
+  onSelectRun,
+  onNavigateToReport
 }) => {
   const getDiagnosticBadgeDetails = (label?: string) => {
     switch (label) {
@@ -119,28 +121,40 @@ export const EvaluationHeader: React.FC<EvaluationHeaderProps> = ({
           </h2>
         </div>
 
-        {/* Run Selector (if multiple training runs exist) */}
-        {runs && runs.length > 1 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-            <label htmlFor="eval-run-select" style={{ fontSize: '0.8rem', color: 'var(--eval-text-muted)', fontWeight: 600 }}>
-              Select Run:
-            </label>
-            <select
-              id="eval-run-select"
-              value={activeRunId}
-              onChange={(e) => onSelectRun(e.target.value)}
-              className="select-input"
-              style={{ padding: '0.45rem 0.85rem', fontSize: '0.8rem' }}
-              aria-label="Select evaluation run"
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          {/* Run Selector (if multiple training runs exist) */}
+          {runs && runs.length > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <label htmlFor="eval-run-select" style={{ fontSize: '0.8rem', color: 'var(--eval-text-muted)', fontWeight: 600 }}>
+                Select Run:
+              </label>
+              <select
+                id="eval-run-select"
+                value={activeRunId}
+                onChange={(e) => onSelectRun(e.target.value)}
+                className="select-input"
+                style={{ padding: '0.45rem 0.85rem', fontSize: '0.8rem' }}
+                aria-label="Select evaluation run"
+              >
+                {runs.map((r) => (
+                  <option key={r.run_id} value={r.run_id}>
+                    {r.run_id} ({r.winning_model || 'Run'})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {onNavigateToReport && (
+            <button
+              className="btn btn-primary"
+              onClick={() => onNavigateToReport(activeRunId)}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', padding: '0.45rem 0.85rem' }}
             >
-              {runs.map((r) => (
-                <option key={r.run_id} value={r.run_id}>
-                  {r.run_id} ({r.winning_model || 'Run'})
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
+              <FileText size={15} /> Final Report & Export
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Spotlight Key Metrics Grid: Training vs Testing Side-by-Side */}

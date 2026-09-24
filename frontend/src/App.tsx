@@ -8,14 +8,15 @@ import { DatasetPreview } from './components/DatasetPreview';
 import { EDADashboard } from './components/eda/EDADashboard';
 import { PreprocessingDashboard } from './components/preprocessing/PreprocessingDashboard';
 import { EvaluationDashboard } from './components/evaluation/EvaluationDashboard';
+import { ReportingDashboard } from './components/reporting/ReportingDashboard';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { UploadResponse } from './types/dataset';
 import { api } from './services/api';
-import { FileUp, BarChart3, Columns, ShieldCheck, Table, LineChart, Sliders, Sparkles } from 'lucide-react';
+import { FileUp, BarChart3, Columns, ShieldCheck, Table, LineChart, Sliders, Sparkles, FileText } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [dataset, setDataset] = useState<UploadResponse | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'eda' | 'columns' | 'quality' | 'preview' | 'prepare' | 'evaluation'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'eda' | 'columns' | 'quality' | 'preview' | 'prepare' | 'evaluation' | 'report'>('overview');
   const [evaluationRunId, setEvaluationRunId] = useState<string | null>(null);
   const [backendConnected, setBackendConnected] = useState<boolean>(false);
 
@@ -130,6 +131,19 @@ export const App: React.FC = () => {
                 >
                   <Sparkles size={15} /> Model Evaluation
                 </button>
+                <button
+                  className={`btn ${activeTab === 'report' ? 'btn-primary' : 'btn-outline'}`}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    fontSize: '0.825rem',
+                    background: activeTab === 'report' ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : undefined,
+                    borderColor: activeTab === 'report' ? '#10b981' : undefined,
+                    color: '#fff'
+                  }}
+                  onClick={() => setActiveTab('report')}
+                >
+                  <FileText size={15} /> Final Report & Export
+                </button>
               </div>
 
               {/* Upload another dataset */}
@@ -184,6 +198,21 @@ export const App: React.FC = () => {
                 <EvaluationDashboard
                   datasetId={dataset.dataset_id}
                   initialRunId={evaluationRunId}
+                  onNavigateToReport={(runId) => {
+                    setEvaluationRunId(runId);
+                    setActiveTab('report');
+                  }}
+                />
+              )}
+
+              {activeTab === 'report' && (
+                <ReportingDashboard
+                  datasetId={dataset.dataset_id}
+                  initialRunId={evaluationRunId}
+                  onNavigateToEvaluation={(runId) => {
+                    setEvaluationRunId(runId);
+                    setActiveTab('evaluation');
+                  }}
                 />
               )}
 
